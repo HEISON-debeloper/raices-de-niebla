@@ -122,7 +122,8 @@ export function datos(x, z) {
       const ws = Lg.ws, fondo = Ws - Lg.ds * (1 - sm(0, ws, lat)), hc = Math.min(h, fondo);
       const cw = 1 - sm(ws, ws + 2 + 1.5 * (h - hc), lat);   // paredes del cauce: a lo sumo ~40°
       h = h * (1 - cw) + hc * cw;
-      const dr = Math.max(0, Ws + 0.35 - h), bw = sm(ws * 0.6, ws * 0.9, lat) * (1 - sm(ws * 1.8, ws * 1.8 + 1 + 1.5 * dr, lat)) * sm(rL * 0.95, rL + 5, dl);
+      let Dm = 0; for (let q = 0; q < Lg.nF; q++) Dm += Lg.HF[q] * sm(Lg.sF[q] - 3, Lg.sF[q], s) * (1 - sm(Lg.sF[q] + 12, Lg.sF[q] + 30, s));   // muro de tierra junto a la caída
+      const dr = Math.max(0, Ws + Dm + 0.35 - h), bw = sm(ws * 0.6, ws * 0.9, lat) * (1 - sm(ws * 1.8, ws * 1.8 + 1 + 1.5 * dr, lat)) * sm(rL * 0.95, rL + 5, dl);
       h = h * (1 - bw) + (h + dr) * bw;
       if (lat < ws * 1.5) Wst = Math.max(Wst, Ws);
       if (lat < ws * 2.6) arroyo = 1;
@@ -134,11 +135,14 @@ export function datos(x, z) {
     const dxp = envolver(x - Lg.cx), dl = Math.hypot(dxp, dzp), rL = Lg.rL;
     if (dl < rL + 120) {   // cuenco y borde (presa natural)
       cuenco = 1;
-      const bowl = Lg.L - 1 - 9 * (1 - sm(0, rL, dl)), hb = bowl, wIn = 1 - sm(0, 1, (dl - rL) / Math.min(110, 2 + 2.5 * Math.abs(h - hb)));   // fondo del lago definido (tapa zanjas de arroyos ajenos)
+      // salida: por donde sale su propio arroyo el borde tiene una muesca (si no, el arroyo nacía de la nada)
+      const s2 = cl(dxp * Lg.sgn, 0, Lg.Len), lat2 = Math.abs(dzp - 25 * Math.sin(s2 / 90 + Lg.f1) - 10 * Math.sin(s2 / 37 + Lg.f2));
+      const sal = s2 > rL * 0.5 ? (1 - sm(Lg.ws * 1.2, Lg.ws * 2.6 + 4, lat2)) * sm(rL - 2, rL + 2, dl) : 0;
+      const bowl = Lg.L - 1 - 9 * (1 - sm(0, rL, dl)), hb = bowl, wIn = (1 - sm(0, 1, (dl - rL) / Math.min(110, 2 + 2.5 * Math.abs(h - hb)))) * (1 - sal);   // fondo del lago definido (tapa zanjas de arroyos ajenos)
       h = h * (1 - wIn) + hb * wIn;
-      const dr = Math.max(0, Lg.L + 2.5 - h), o = rL + Math.max(20, 8 + 1.3 * dr), wRim = sm(rL, rL + 3 + 1.3 * dr, dl) * (1 - sm(o, o + 4 + 2.5 * dr, dl));
+      const dr = Math.max(0, Lg.L + 2.5 - h), o = rL + Math.max(20, 8 + 1.3 * dr), wRim = sm(rL, rL + 3 + 1.3 * dr, dl) * (1 - sm(o, o + 4 + 2.5 * dr, dl)) * (1 - sal);
       h = h * (1 - wRim) + (h + dr) * wRim;
-      if (dl < rL + 3) W = Math.max(W, Lg.L);   // agua solo dentro del cuenco: afuera la sostiene el borde
+      if (dl < rL + 3 && sal < 0.5) W = Math.max(W, Lg.L);   // agua solo dentro del cuenco: afuera la sostiene el borde
     }
   }
   if (Wst > h && Wst - h < 2.6) W = Math.max(W, Wst);   // el agua del arroyo solo donde su cauce sigue ahí (un lago u otro corte no la deja colgada)
