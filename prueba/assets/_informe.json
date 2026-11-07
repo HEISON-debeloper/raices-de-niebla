@@ -108,31 +108,31 @@
  },
  "texturas": {
   "aerial_grass_rock": {
-   "Diffuse": 927,
+   "Diffuse": 1494,
    "nor_gl": 1523
   },
   "forrest_ground_01": {
-   "Diffuse": 1204,
+   "Diffuse": 2196,
    "nor_gl": 2359
   },
   "rocky_terrain_02": {
-   "Diffuse": 578,
+   "Diffuse": 1319,
    "nor_gl": 1486
   },
   "rock_face": {
-   "Diffuse": 432,
+   "Diffuse": 906,
    "nor_gl": 1370
   },
   "brown_mud_leaves_01": {
-   "Diffuse": 1287,
+   "Diffuse": 2175,
    "nor_gl": 2319
   },
   "aerial_rocks_02": {
-   "Diffuse": 1122,
+   "Diffuse": 1729,
    "nor_gl": 1660
   },
   "coast_sand_rocks_02": {
-   "Diffuse": 601,
+   "Diffuse": 1429,
    "nor_gl": 1763
   }
  }
