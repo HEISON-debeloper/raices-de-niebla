@@ -43,10 +43,11 @@ function arbol(preset, semilla, lejos) {
   if (lejos) { const b = t.options.branch; for (const k in b.segments) b.segments[k] = Math.max(3, Math.round(b.segments[k] * 0.5)); for (const k in b.sections) b.sections[k] = Math.max(1, Math.round(b.sections[k] * 0.6)); t.options.leaves.count = Math.round(t.options.leaves.count * 0.5); t.options.leaves.size *= 1.4; t.options.leaves.billboard = 'single'; }
   t.generate(); t.updateMatrixWorld(true); return { scene: t };
 }
+// dpr: resolución máxima; min: hasta dónde puede bajar la resolución dinámica para sostener ~55 FPS
 const CALIDAD = {
-  alta: { dpr: 2, msaa: 4, sombra: 2048, bloom: true, lod: 1 },
-  media: { dpr: 1.5, msaa: 2, sombra: 1536, bloom: false, lod: 0.7 },
-  baja: { dpr: 1, msaa: 0, sombra: 1024, bloom: false, lod: 0.45 },
+  alta: { dpr: 2, min: 1, msaa: 4, sombra: 2048, bloom: true, lod: 1 },
+  media: { dpr: 1.5, min: 0.8, msaa: 2, sombra: 1536, bloom: false, lod: 0.7 },
+  baja: { dpr: 1, min: 0.6, msaa: 0, sombra: 1024, bloom: false, lod: 0.45 },
 };
 
 const $ = id => document.getElementById(id);
@@ -65,13 +66,17 @@ const cam = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 3500)
 cam.layers.enable(1);   // capa 1 = pasto y plantas pequeñas: se ven, pero no se reflejan en el agua
 const terr = crearTerreno();
 const cielo = crearCielo(renderer, scene);
-const agua = crearAgua(cielo.estado.dir);
+const agua = crearAgua();
 scene.add(agua.grupo);
 
 // ---------- posproceso ----------
 let composer, niebla, bloom;
+let escala = 0;   // resolución dinámica (multiplica el tamaño en píxeles CSS)
 function montarComposer() {
-  const Q = CALIDAD[calidad], w = innerWidth, h = innerHeight, dpr = Math.min(devicePixelRatio, Q.dpr);
+  const Q = CALIDAD[calidad], w = innerWidth, h = innerHeight;
+  const max = Math.min(devicePixelRatio, Q.dpr), min = Math.min(max, Q.min);
+  if (!escala || escala > max || escala < min) escala = movil ? Math.max(min, max * 0.8) : max;
+  const dpr = escala;
   renderer.setPixelRatio(dpr);
   const rt = new THREE.WebGLRenderTarget(w * dpr, h * dpr, { type: THREE.HalfFloatType, samples: Q.msaa });
   rt.depthTexture = new THREE.DepthTexture(w * dpr, h * dpr); rt.depthTexture.type = THREE.FloatType;
@@ -98,7 +103,7 @@ const paso = (p, txt) => { total++; return p.then(r => { hechos++; progreso(hech
 
 const especies = [];
 let terrMesh, terrFar, pasto, manada, controles;
-const datos = { listo: false, errores: [], cargados: [] };
+const datos = { listo: false, errores: [], cargados: [], fija: new URLSearchParams(location.search).has('fija') };
 window.__escena = datos;
 
 async function iniciar() {
@@ -185,7 +190,7 @@ function ponerCalidad(q) {
   calidad = q; document.querySelectorAll('[data-q]').forEach(b => b.classList.toggle('on', b.dataset.q === q));
   if (!terrMesh) return;
   terrMesh.material.defines.TRIPLANAR = q === 'baja' ? 0 : 1; terrMesh.material.needsUpdate = true;
-  pasto.calidad(q); agua.calidad(q); montarComposer();
+  escala = 0; pasto.calidad(q); agua.calidad(q); montarComposer();
 }
 agua.calidad(calidad); document.querySelectorAll('[data-q]').forEach(b => b.classList.toggle('on', b.dataset.q === calidad));
 addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (composer) montarComposer(); });
@@ -205,7 +210,14 @@ function frame() {
     niebla.material.uniforms.uTime.value = t; VIENTO.value = t;
     composer.render(dt);
     fpsN++; fpsT += dt;
-    if (fpsT >= 1) { const i = renderer.info.render; $('fps').textContent = `${Math.round(fpsN / fpsT)} FPS · ${i.calls} llamadas · ${(i.triangles / 1e6).toFixed(2)} M triángulos`; datos.fps = fpsN / fpsT; datos.calls = i.calls; datos.tris = i.triangles; fpsN = 0; fpsT = 0; }
+    if (fpsT >= 1) {
+      const fps = fpsN / fpsT, Q = CALIDAD[calidad], max = Math.min(devicePixelRatio, Q.dpr), min = Math.min(max, Q.min);
+      // resolución dinámica: el iPhone está limitado por píxeles (1290×2796), no por triángulos
+      if (!datos.fija && t > 4) {
+        let e = escala; if (fps < 48) e = Math.max(min, e * 0.88); else if (fps > 57) e = Math.min(max, e * 1.06);
+        if (Math.abs(e - escala) > 0.02) { escala = e; renderer.setPixelRatio(e); composer.setPixelRatio(e); composer.setSize(innerWidth, innerHeight); }
+      }
+      const i = renderer.info.render; $('fps').textContent = `${Math.round(fps)} FPS · ${Math.round(innerWidth * escala)}×${Math.round(innerHeight * escala)} · ${(i.triangles / 1e6).toFixed(2)} M triángulos`; datos.fps = fpsN / fpsT; datos.calls = i.calls; datos.tris = i.triangles; fpsN = 0; fpsT = 0; }
   }
   requestAnimationFrame(frame);
 }
