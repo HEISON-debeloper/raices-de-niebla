@@ -21,7 +21,7 @@ function normalesAgua(n = 256) {
 }
 
 export function crearAgua() {
-  const geo = new THREE.PlaneGeometry(2600, 2600); geo.rotateX(-Math.PI / 2);
+  const geo = new THREE.PlaneGeometry(10400, 10400); geo.rotateX(-Math.PI / 2);   // cubre todo el mundo (5,2 km + margen): antes acababa a 1,3 km en un borde recto
   const U = { uTime: { value: 0 }, uNor: { value: normalesAgua() } };
   const m = new THREE.MeshStandardMaterial({ color: 0x15332d, roughness: 0.14, metalness: 0, envMapIntensity: 0.75 });
   m.onBeforeCompile = s => {
