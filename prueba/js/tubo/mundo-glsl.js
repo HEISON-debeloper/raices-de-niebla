@@ -10,10 +10,11 @@ export const GLSL_MUNDO = GLSL_RUIDO + /* glsl */`
 #define LX (TC/6.)
 #define LZ 1024.
 #define VX (TC/3.)
-#define VZ 3000.
+#define VZ 1000.
 #define NIEVE 400.
 #define ARBOL_MAX 320.
 float smt(float a, float b, float x){ float t=clamp((x-a)/(b-a),0.,1.); return t*t*(3.-2.*t); }
+float tapa(float z){ return 880.*smt(0.,1.,(abs(z)-440.)/130.); }
 float envolver(float x){ return x - TC*floor(x/TC+.5); }
 float fc(vec2 p, float s, vec3 o, int oct){ float a=p.x/TR; return fbm3(vec3(TR*cos(a)/s, TR*sin(a)/s, p.y/s)+o, oct); }
 float rioU(float k, float z){ return k*TC/3.+300.+70.*sin(z/260.+k*2.1)+25.*sin(z/83.+k*1.3); }
@@ -42,7 +43,7 @@ bool lagoDe(int i, int j, float pz, out vec4 A, out vec4 B, out vec4 Cc, out vec
   float cx=(float(i)+.15+.7*hash3(ivec3(im,j,502)))*LX, cz=(float(j)+.15+.7*hash3(ivec3(im,j,503)))*LZ;
   if(pz>-1e8 && abs(pz-cz)>230.) return false;
   vec3 rr=rio(vec2(cx,cz)); float hc=hsuave(vec2(cx,cz),rr);
-  if(!(mar(cz).x>SW+900. && rr.x>260. && hc>80.)) return false;
+  if(!(mar(cz).x>SW+900. && rr.x>260. && hc>80. && abs(cz)<330.)) return false;
   float dx=envolver(rioU(rr.y,cz)-cx), sgn=dx<0.?-1.:1., rL=nac?3.:30.+70.*hash3(ivec3(im,j,504));
   float Len=abs(dx)-rr.z*.5;
   float rr2=rL+20.; vec2 q1=vec2(cx+sgn*rr2,cz), q2=vec2(cx,cz+rr2), q3=vec2(cx,cz-rr2);
@@ -108,11 +109,11 @@ void datos(vec2 p, out float h, out float W, out float lava, out float nieve, ou
     }
   }
   if(Wst>h && Wst-h<2.6) W=max(W,Wst);
-  int vi=int(floor(p.x/VX)), vj=int(floor(p.y/VZ));
+  int vi=int(floor(p.x/VX)), vj=int(floor((p.y+500.)/VZ));
   for(int dj=-1;dj<=1;dj++) for(int di=-1;di<=1;di++){
     int i=vi+di, j=vj+dj, im=i-3*int(floor(float(i)/3.));
-    float pr=hash3(ivec3(im,j,701)); if(pr>=.45) continue;
-    float cx=(float(i)+.25+.5*hash3(ivec3(im,j,702)))*VX, cz=(float(j)+.25+.5*hash3(ivec3(im,j,703)))*VZ, rV=250.+450.*hash3(ivec3(im,j,704));
+    float pr=hash3(ivec3(im,j,701)); if(pr>=1.) continue;
+    float cx=(float(i)+.25+.5*hash3(ivec3(im,j,702)))*VX, cz=(float(j)+.25+.5*hash3(ivec3(im,j,703)))*VZ-500., rV=140.+160.*hash3(ivec3(im,j,704));
     float dl=length(vec2(envolver(p.x-cx), p.y-cz)); if(dl>rV) continue;
     vec3 rr=rio(vec2(cx,cz)); if(!(mar(cz).x>SW+rV+300. && rr.x>rV*.5 && !lagoCerca(cx,cz,rV))) continue;
     float HV=rV*(.18+.12*hash3(ivec3(im,j,705))), rc=rV*.18, base=hsuave(vec2(cx,cz),rr);
@@ -123,6 +124,7 @@ void datos(vec2 p, out float h, out float W, out float lava, out float nieve, ou
   }
   float w=r.z, c=1.-smt(w*.5,w*.5+max(.8*w,14.),d);
   if(c>0.){ float hondo=r.y<.5?8.:(r.y<1.5?5.5:3.), anchoB=r.y<.5?45.:(r.y<1.5?16.:7.); float fondo=-1.5-hondo*(w/anchoB)*pow(1.-smt(0.,w*.45,d),.8)+.8*(fc(p,9.,vec3(3.1,1.9,-6.2),2)-.5); h=h*(1.-c)+fondo*c; }
+  h+=tapa(p.y);
   nieve=smt(NIEVE-25.,NIEVE+25.,h+25.*(fc(p,80.,vec3(5.),2)-.5))*(1.-vm);
   float hum=fc(p,900.,vec3(-7.7,1.2,9.3),2);
   float sel=smt(.42,.55,fc(p,140.,vec3(11.,-7.,2.),3))*(1.-smt(90.,140.,h))*(.6+.4*hum);
