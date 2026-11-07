@@ -16,10 +16,15 @@ export function crearAgua(niveles) {
       s.vertexShader = 'varying vec3 vWPa; varying float vV; varying float vLava; varying vec3 vNa;\n' + GLSL_NIVEL + s.vertexShader
         .replace('#include <beginnormal_vertex>', /* glsl */`
           vec2 pp = nivelPP(), q = nivelXZ(pp); float s = uNiv.z;
-          vec4 A = leerA(pp); float W = aguaDe(A), h = alturaDe(A);
-          float wx1 = aguaDe(leerA(pp + vec2(1., 0.))), wx0 = aguaDe(leerA(pp - vec2(1., 0.)));
-          float wz1 = aguaDe(leerA(pp + vec2(0., 1.))), wz0 = aguaDe(leerA(pp - vec2(0., 1.)));
-          vec3 objectNormal = normalize(vec3(wx0 - wx1, 2.*s, wz0 - wz1)); vNa = objectNormal;
+          // El agua nunca flota: en un vértice seco vecino de agua, la superficie baja hasta el suelo de ese vértice
+          // (orilla), en vez de caer hasta el nivel 0 formando una pared colgada entre dos vértices.
+          vec4 A = leerA(pp); float h = alturaDe(A), W = aguaDe(A);
+          vec2 o[4]; o[0] = vec2(1.,0.); o[1] = vec2(-1.,0.); o[2] = vec2(0.,1.); o[3] = vec2(0.,-1.);
+          float Wn[4]; float wMax = -1e9;
+          for (int k = 0; k < 4; k++) { vec4 An = leerA(pp + o[k]); float wk = aguaDe(An), hk = alturaDe(An); Wn[k] = wk > hk ? wk : -1e9; wMax = max(wMax, Wn[k]); }
+          if (W <= h) W = wMax > -1e8 ? min(wMax, h) : W;
+          for (int k = 0; k < 4; k++) if (Wn[k] < -1e8) Wn[k] = W;   // vecinos secos: superficie plana (sin falsas cascadas)
+          vec3 objectNormal = normalize(vec3(Wn[1] - Wn[0], 2.*s, Wn[3] - Wn[2])); vNa = objectNormal;
           vec4 B = texture2D(texB, uvNivel(pp)); vV = W - h; vLava = (B.a > .5 && W > 30.) ? 1. : 0.;`)
         .replace('#include <begin_vertex>', 'vec3 transformed = vec3(q.x, W, q.y); vWPa = transformed;');
       s.fragmentShader = 'varying vec3 vWPa; varying float vV; varying float vLava; varying vec3 vNa; uniform float uTime; uniform sampler2D uNor;\n' + s.fragmentShader

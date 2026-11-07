@@ -58,7 +58,10 @@ export function lago(i, j) {
     if (mar(cz).dz > SW + 900 && rr.d > 260 && hc > 80) {
       const dx = envolver(rioU(rr.k, cz) - cx), sgn = dx < 0 ? -1 : 1, rL = nac ? 3 : 30 + 70 * hash3(im, j, 504);
       const nF = Math.floor(hash3(im, j, 509) * 3), Len = Math.abs(dx) - rr.w * 0.5;
-      L = { cx, cz, rL, L: hc - (nac ? 0.8 : 6), sgn, Len, ws: 1.5 + 3 * hash3(im, j, 505), ds: 1 + 0.9 * hash3(im, j, 506),
+      // nivel = el punto más bajo del contorno (aguas abajo y a los lados): el terreno contiene el agua sin presas gigantes
+      const rr2 = rL + 20, hs = (px, pz) => hsuave(px, pz);
+      const Lv = Math.min(hc - (nac ? 0.8 : 6), hs(cx + sgn * rr2, cz) - 1, hs(cx, cz + rr2) - 1, hs(cx, cz - rr2) - 1);
+      L = { cx, cz, rL, L: Lv, sgn, Len, ws: 1.5 + 3 * hash3(im, j, 505), ds: 1 + 0.9 * hash3(im, j, 506),
         f1: hash3(im, j, 507) * 6.2832, f2: hash3(im, j, 508) * 6.2832, nF,
         sF: [Len * (0.2 + 0.3 * hash3(im, j, 510)), Len * (0.55 + 0.3 * hash3(im, j, 512))], HF: [6 + 18 * hash3(im, j, 511), 6 + 18 * hash3(im, j, 513)] };
     }
@@ -98,46 +101,56 @@ export function datos(x, z) {
   let sw = sm(0.56, 0.68, f(x, z, 220, 9.9, -1.1, 3.7, 3)) * Math.max((1 - sm(60, 160, d)) * (r.k === 0 ? 1 : 0.3), sm(SW + 150, SW + 500, M.dz) * (1 - sm(SW + 600, SW + 900, M.dz)));
   sw *= (1 - sm(3, 8, h)) * (1 - M.m);
   if (sw > 0) h = h * (1 - sw) + (0.25 + 1.4 * (f(x, z, 16, 2.5, 7.5, -1.5, 2) - 0.5)) * sw;
-  let W = 0, lava = 0, vm = 0, arroyo = 0, cuenco = 0;
+  let W = 0, lava = 0, vm = 0, arroyo = 0, cuenco = 0, Wst = -1e9;
   // lagos y arroyos (celda propia y vecinas)
   const ci = Math.floor(x / LX), cj = Math.floor(z / LZ);
+  // 1º arroyos de todos los lagos vecinos, 2º lagos: el cuenco y el borde de un lago mandan sobre un arroyo ajeno que pase
   for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
     const Lg = lago(ci + di, cj + dj); if (!Lg) continue;
-    const dzp = z - Lg.cz; if (Math.abs(dzp) > 170) continue;
+    const dzp = z - Lg.cz; if (Math.abs(dzp) > 230) continue;
     const dxp = envolver(x - Lg.cx), dl = Math.hypot(dxp, dzp), rL = Lg.rL;
-    if (dl < rL + 60) {   // cuenco y borde (presa natural)
-      cuenco = 1;
-      const bowl = Lg.L - 1 - 9 * (1 - sm(0, rL, dl)), hb = Math.min(h, bowl), wIn = 1 - sm(0, 1, (dl - rL) / (2 + 2.5 * (h - hb)));
-      h = h * (1 - wIn) + hb * wIn;
-      const dr = Math.max(0, Lg.L + 2.5 - h), o = rL + Math.max(20, 8 + 1.3 * dr), wRim = sm(rL, rL + 3 + 1.3 * dr, dl) * (1 - sm(o, o + 4 + 2.5 * dr, dl));
-      h = h * (1 - wRim) + (h + dr) * wRim;
-      W = Math.max(W, Lg.L);   // el agua llena todo lo que quede por debajo del nivel
-    }
     const s = cl(dxp * Lg.sgn, 0, Lg.Len), mnd = 25 * Math.sin(s / 90 + Lg.f1) + 10 * Math.sin(s / 37 + Lg.f2), lat = Math.abs(dzp - mnd);
     if (s > rL * 0.5 && lat < 70 && s < Lg.Len - 0.01) {
       // nivel del agua: mínimo de 5 muestras aguas arriba (nunca sube), nunca por encima del lago
       let Ws = 1e9; for (let q = 0; q < 5; q++) { const sq = Math.max(rL * 0.5, s - 40 * q); Ws = Math.min(Ws, hsuave(Lg.cx + Lg.sgn * sq, Lg.cz + 25 * Math.sin(sq / 90 + Lg.f1) + 10 * Math.sin(sq / 37 + Lg.f2))); }
-      Ws = Math.min(Ws - 1.5, Lg.L); Ws = Math.min(Ws, Math.max(0, (d - r.w * 0.6) * 0.3));
-      // cascadas: escalón en el agua y en el terreno (corredor que se desvanece a lo ancho)
-      let D = 0; for (let q = 0; q < Lg.nF; q++) D += Lg.HF[q] * (1 - sm(Lg.sF[q] - 3, Lg.sF[q], s)) * sm(Lg.sF[q] - 220, Lg.sF[q] - 30, s);   // aguas arriba el terreno sube hasta un escarpe
-      Ws += D; h += D * (1 - sm(40, 70, lat));
+      // cascadas: aguas arriba el terreno sube hasta un escarpe (corredor que se desvanece a lo ancho y junto al lago)
+      let D = 0; for (let q = 0; q < Lg.nF; q++) D += Lg.HF[q] * (1 - sm(Lg.sF[q] - 3, Lg.sF[q], s)) * sm(Lg.sF[q] - 220, Lg.sF[q] - 30, s);
+      D *= sm(rL * 0.5, rL + 60, s);
+      Ws = Math.min(Ws - 1.5 + D, Lg.L); Ws = Lg.L + (Ws - Lg.L) * sm(rL + 5, rL + 70, s);   // nunca sobre el lago; la salida baja en rápidos
+      Ws = Math.min(Ws, Math.max(0, (d - r.w * 0.6) * 0.3));
+      h += D * (1 - sm(40, 70, lat));
       const ws = Lg.ws, fondo = Ws - Lg.ds * (1 - sm(0, ws, lat)), hc = Math.min(h, fondo);
       const cw = 1 - sm(ws, ws + 2 + 1.5 * (h - hc), lat);   // paredes del cauce: a lo sumo ~40°
       h = h * (1 - cw) + hc * cw;
       const dr = Math.max(0, Ws + 0.35 - h), bw = sm(ws * 0.6, ws * 0.9, lat) * (1 - sm(ws * 1.8, ws * 1.8 + 1 + 1.5 * dr, lat)) * sm(rL * 0.95, rL + 5, dl);
       h = h * (1 - bw) + (h + dr) * bw;
-      if (lat < ws * 1.5) W = Math.max(W, Ws);
+      if (lat < ws * 1.5) Wst = Math.max(Wst, Ws);
       if (lat < ws * 2.6) arroyo = 1;
     }
   }
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const Lg = lago(ci + di, cj + dj); if (!Lg) continue;
+    const dzp = z - Lg.cz; if (Math.abs(dzp) > 230) continue;
+    const dxp = envolver(x - Lg.cx), dl = Math.hypot(dxp, dzp), rL = Lg.rL;
+    if (dl < rL + 120) {   // cuenco y borde (presa natural)
+      cuenco = 1;
+      const bowl = Lg.L - 1 - 9 * (1 - sm(0, rL, dl)), hb = bowl, wIn = 1 - sm(0, 1, (dl - rL) / Math.min(110, 2 + 2.5 * Math.abs(h - hb)));   // fondo del lago definido (tapa zanjas de arroyos ajenos)
+      h = h * (1 - wIn) + hb * wIn;
+      const dr = Math.max(0, Lg.L + 2.5 - h), o = rL + Math.max(20, 8 + 1.3 * dr), wRim = sm(rL, rL + 3 + 1.3 * dr, dl) * (1 - sm(o, o + 4 + 2.5 * dr, dl));
+      h = h * (1 - wRim) + (h + dr) * wRim;
+      if (dl < rL + 3) W = Math.max(W, Lg.L);   // agua solo dentro del cuenco: afuera la sostiene el borde
+    }
+  }
+  if (Wst > h && Wst - h < 2.6) W = Math.max(W, Wst);   // el agua del arroyo solo donde su cauce sigue ahí (un lago u otro corte no la deja colgada)
   // volcanes
   const vi = Math.floor(x / VX), vj = Math.floor(z / VZ);
   for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
     const V = volcan(vi + di, vj + dj); if (!V) continue;
     const dl = Math.hypot(envolver(x - V.cx), z - V.cz); if (dl > V.rV) continue;
-    const cono = V.HV * Math.pow(1 - sm(0, V.rV, dl), 1.6) - 0.25 * V.HV * (1 - sm(V.rc * 0.8, V.rc * 1.3, dl));
+    h = h + (V.base - h) * (1 - sm(V.rV * 0.45, V.rV, dl));   // base plana: el cono queda simétrico y el cráter no se derrama
+    const cono = V.HV * Math.pow(1 - sm(0, V.rV, dl), 1.6) - 0.3 * V.HV * (1 - sm(0, V.rc * 1.3, dl));   // cráter en cuenco
     h += cono * (1 + 0.03 * (f(x, z, 40, 1, 1, 1, 2) - 0.5)); vm = Math.max(vm, 1 - sm(V.rV * 0.85, V.rV * 1.05, dl));
-    if (dl < V.rc * 1.2) { W = Math.max(W, V.base + 0.74 * V.HV); lava = 1; }
+    if (dl < V.rc * 1.3) { W = Math.max(W, V.base + 0.76 * V.HV); lava = 1; }
   }
   // cauce del río principal (al final: corta todo lo demás)
   const w = r.w, c = 1 - sm(w * 0.5, w * 0.5 + Math.max(0.8 * w, 14), d);
