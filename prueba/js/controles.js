@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 
 export function crearControles(cam, dom, terr, waterY) {
-  const st = { yaw: 0, pitch: -0.05, keys: new Set(), joy: null, look: null, mx: 0, mz: 0, run: false, activo: true, y: null };
+  const st = { yaw: 0, pitch: -0.05, keys: new Set(), joy: null, look: null, mx: 0, mz: 0, run: false, activo: true, y: null, volar: false, vel: 60, sube: 0 };
   const e = new THREE.Euler(0, 0, 0, 'YXZ');
   addEventListener('keydown', ev => { st.keys.add(ev.code); if (ev.code.startsWith('Shift')) st.run = true; });
   addEventListener('keyup', ev => { st.keys.delete(ev.code); if (ev.code.startsWith('Shift')) st.run = false; });
@@ -40,12 +40,24 @@ export function crearControles(cam, dom, terr, waterY) {
     if (st.keys.has('KeyA') || st.keys.has('ArrowLeft')) fx -= 1;
     if (st.keys.has('KeyD') || st.keys.has('ArrowRight')) fx += 1;
     const l = Math.hypot(fx, fz); if (l > 1) { fx /= l; fz /= l; }
-    const v = (st.run ? 9 : 4.2) * dt, s = Math.sin(st.yaw), c = Math.cos(st.yaw);
-    cam.position.x += (fx * c + fz * s) * v; cam.position.z += (-fx * s + fz * c) * v;
-    const lim = 420; cam.position.x = Math.max(-lim, Math.min(lim, cam.position.x)); cam.position.z = Math.max(-lim, Math.min(lim, cam.position.z));
-    const suelo = Math.max(terr.heightAt(cam.position.x, cam.position.z), waterY - 0.9) + 1.65;
-    st.y = st.y == null ? suelo : st.y + (suelo - st.y) * Math.min(1, dt * 10);
-    cam.position.y = st.y;
+    const s = Math.sin(st.yaw), c = Math.cos(st.yaw);
+    if (st.volar) {
+      // vuelo libre: avanza hacia donde mira (incluida la inclinación); Espacio/E sube, Q/C baja; Shift ×3
+      const v = st.vel * (st.run && !st.joy ? 3 : 1) * dt, cp = Math.cos(st.pitch), sp = Math.sin(st.pitch);
+      let up = st.sube; if (st.keys.has('Space') || st.keys.has('KeyE')) up += 1; if (st.keys.has('KeyQ') || st.keys.has('KeyC')) up -= 1;
+      cam.position.x += (fx * c + fz * s * cp) * v; cam.position.z += (-fx * s + fz * c * cp) * v;
+      cam.position.y += (-fz * sp + up * 0.6) * v;
+      const lim = 2300; cam.position.x = Math.max(-lim, Math.min(lim, cam.position.x)); cam.position.z = Math.max(-lim, Math.min(lim, cam.position.z));
+      cam.position.y = Math.min(1500, Math.max(cam.position.y, Math.max(terr.heightAt(cam.position.x, cam.position.z), waterY) + 1.5));
+      st.y = cam.position.y;
+    } else {
+      const v = (st.run ? 9 : 4.2) * dt;
+      cam.position.x += (fx * c + fz * s) * v; cam.position.z += (-fx * s + fz * c) * v;
+      const lim = 420; cam.position.x = Math.max(-lim, Math.min(lim, cam.position.x)); cam.position.z = Math.max(-lim, Math.min(lim, cam.position.z));
+      const suelo = Math.max(terr.heightAt(cam.position.x, cam.position.z), waterY - 0.9) + 1.65;
+      st.y = st.y == null ? suelo : st.y + (suelo - st.y) * Math.min(1, dt * 10);
+      cam.position.y = st.y;
+    }
     e.set(st.pitch, st.yaw, 0); cam.quaternion.setFromEuler(e);
   }
   return { st, update, mirarA(x, y, z) { const d = new THREE.Vector3(x, y, z).sub(cam.position); st.yaw = Math.atan2(-d.x, -d.z); st.pitch = Math.atan2(d.y, Math.hypot(d.x, d.z)); st.y = null; } };

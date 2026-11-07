@@ -67,7 +67,7 @@ export function crearCielo(renderer, scene) {
     nubes.material.uniforms.uTime.value = t;
     // la sombra sigue a la cámara, alineada a texeles para que no tiemble
     const s = 140 / sol.shadow.mapSize.x, tx = Math.round(camPos.x / s) * s, tz = Math.round(camPos.z / s) * s;
-    sol.target.position.set(tx, camPos.y - 10, tz);
+    sol.target.position.set(tx, Math.min(camPos.y - 10, (estado.suelo ? estado.suelo(tx, tz) : 0) + 20), tz);   // en vuelo la sombra sigue cubriendo el suelo
     sol.position.copy(sol.target.position).addScaledVector(dir, 300);
   }
   return { sky, nubes, sol, setHora, update, estado };

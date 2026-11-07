@@ -173,6 +173,7 @@ async function iniciar() {
 
   cam.position.set(x0, terr.heightAt(x0, z0) + 1.65, z0);
   controles = crearControles(cam, renderer.domElement, terr, WATER_Y);
+  cielo.estado.suelo = (x, z) => terr.heightAt(x, z);
   controles.mirarA(riverX(-120), 8, -120);
   montarComposer();
   cielo.setHora(9.2); actualizarSolAgua();
@@ -202,13 +203,29 @@ function ponerCalidad(q) {
   escala = 0; pasto.calidad(q); agua.calidad(q); montarComposer();
 }
 agua.calidad(calidad); document.querySelectorAll('[data-q]').forEach(b => b.classList.toggle('on', b.dataset.q === calidad));
+// ---------- vuelo ----------
+const vel = $('vel');
+function ponerModo(volar) {
+  controles.st.volar = volar; document.body.classList.toggle('volando', volar);
+  document.querySelectorAll('[data-modo]').forEach(b => b.classList.toggle('on', (b.dataset.modo === 'volar') === volar));
+  if (!volar) { controles.st.y = null; $('alt').textContent = ''; }
+}
+document.querySelectorAll('[data-modo]').forEach(b => b.addEventListener('click', () => controles && ponerModo(b.dataset.modo === 'volar')));
+vel.addEventListener('input', () => { if (controles) controles.st.vel = +vel.value; $('vel-v').textContent = Math.round(vel.value * 3.6) + ' km/h'; });
+for (const [id, d] of [['subir', 1], ['bajar', -1]]) {
+  const b = $(id), on = ev => { ev.preventDefault(); controles && (controles.st.sube = d); }, off = () => controles && (controles.st.sube = 0);
+  b.addEventListener('touchstart', on, { passive: false }); b.addEventListener('touchend', off); b.addEventListener('touchcancel', off);
+  b.addEventListener('mousedown', on); b.addEventListener('mouseup', off); b.addEventListener('mouseleave', off);
+}
+addEventListener('keydown', ev => { if (ev.code === 'KeyF' && controles) ponerModo(!controles.st.volar); });
+datos.volar = ponerModo;
 addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (composer) montarComposer(); });
 
 // ---------- bucle ----------
-let tPrev = performance.now(), t = 0, fpsN = 0, fpsT = 0, ultimoCambio = 0; const fpsHist = [];
+let tPrev = performance.now(), t = 0, fpsN = 0, fpsT = 0, ultimoCambio = 0, peor = 0; const fpsHist = [];
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
 function frame() {
-  const now = performance.now(), dt = Math.min((now - tPrev) / 1000, 0.1); tPrev = now; t += dt;
+  const now = performance.now(), dtr = (now - tPrev) / 1000, dt = Math.min(dtr, 0.1); tPrev = now; t += dt; peor = Math.max(peor, dtr);
   renderer.info.reset();
   if (datos.listo) {
     controles.update(dt);
@@ -229,7 +246,9 @@ function frame() {
         const nk = prom < 46 ? k - 1 : prom > 58 ? k + 1 : k;
         if (nk !== k && nk >= 0 && nk < cand.length) { escala = cand[nk]; aplicarEscala(); ultimoCambio = t; fpsHist.length = 0; }
       }
-      const [iw, ih] = tamInterno(), i = renderer.info.render; $('fps').textContent = `${Math.round(fps)} FPS · ${iw}×${ih} · ${(i.triangles / 1e6).toFixed(2)} M triángulos`; datos.fps = fpsN / fpsT; datos.calls = i.calls; datos.tris = i.triangles; fpsN = 0; fpsT = 0; }
+      const [iw, ih] = tamInterno(), i = renderer.info.render; $('fps').textContent = `${Math.round(fps)} FPS · peor ${Math.round(peor * 1000)} ms · ${iw}×${ih} · ${(i.triangles / 1e6).toFixed(2)} M tri`;
+      if (controles && controles.st.volar) $('alt').textContent = `${Math.round(cam.position.y - Math.max(terr.heightAt(cam.position.x, cam.position.z), 0))} m sobre el suelo · ${Math.round(controles.st.vel * 3.6)} km/h`;
+      peor = 0; datos.fps = fpsN / fpsT; datos.calls = i.calls; datos.tris = i.triangles; fpsN = 0; fpsT = 0; }
   }
   requestAnimationFrame(frame);
 }
