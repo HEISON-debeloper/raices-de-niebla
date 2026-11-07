@@ -40,9 +40,12 @@ for (const id of cfg.textures.ids) {
   const dir = path.join(RAW, 'tex', id); if (!fs.existsSync(dir)) continue; const o = path.join(OUT, 'tex', id); fs.mkdirSync(o, { recursive: true }); rep.texturas[id] = {};
   const fd = path.join(dir, 'Diffuse.jpg'), fr = path.join(dir, 'Rough.jpg'), fn = path.join(dir, 'nor_gl.jpg'), sz = O.terrDiff;
   if (fs.existsSync(fd)) {
-    let img = sharp(fd).resize(sz, sz).removeAlpha();
-    if (fs.existsSync(fr)) { const a = await sharp(fr).resize(sz, sz).extractChannel(0).raw().toBuffer(); img = img.joinChannel(a, { raw: { width: sz, height: sz, channels: 1 } }); }
-    const d = path.join(o, 'Diffuse.webp'); await img.webp({ quality: 82, alphaQuality: 55 }).toFile(d); rep.texturas[id].Diffuse = Math.round(fs.statSync(d).size / 1024);
+    // joinChannel se aplica a la imagen de entrada (antes de resize), así que la rugosidad se lleva primero al tamaño original
+    const md = await sharp(fd).metadata(); let img = sharp(fd);
+    if (fs.existsSync(fr)) { const a = await sharp(fr).resize(md.width, md.height).extractChannel(0).raw().toBuffer(); img = img.joinChannel(a, { raw: { width: md.width, height: md.height, channels: 1 } }); }
+    const d = path.join(o, 'Diffuse.webp'); await img.resize(sz, sz).webp({ quality: 82, alphaQuality: 55 }).toFile(d);
+    const mo = await sharp(d).metadata(); if (!mo.hasAlpha) throw new Error('Diffuse.webp de ' + id + ' quedó sin canal alfa (rugosidad)');
+    rep.texturas[id].Diffuse = Math.round(fs.statSync(d).size / 1024);
   }
   if (fs.existsSync(fn)) { const d = path.join(o, 'nor_gl.webp'); await sharp(fn).resize(O.terrNor, O.terrNor).webp({ quality: 90 }).toFile(d); rep.texturas[id].nor_gl = Math.round(fs.statSync(d).size / 1024); }
   const viejo = path.join(o, 'Rough.webp'); if (fs.existsSync(viejo)) fs.unlinkSync(viejo);
