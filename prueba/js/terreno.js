@@ -1,6 +1,7 @@
 // Valle andino: relieve, río, máscaras (pasto, bosque) y material con texturas reales mezcladas por pendiente y altura.
 import * as THREE from 'three';
 import { fbm, ridge, smooth } from './ruido.js';
+import { mate } from './materiales.js';
 
 export const SIZE = 900, N = 288, WATER_Y = 0;
 const STEP = SIZE / N;
@@ -96,12 +97,9 @@ export function materialTerreno(tex, dataTex, calidad) {
     s.fragmentShader = FRAG_PARS + s.fragmentShader
       .replace('#include <map_fragment>', FRAG_MAP)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = tRough;')
-      /* suelo: reflejo especular reducido (F0 0,015 y Fresnel rasante 0,5). Con el valor normal (0,04 y 1,0) el modelo GGX dispara
-         valores enormes en píxeles sueltos cuando sol y mirada son rasantes (amanecer/atardecer): puntos blancos con halo del bloom */
-      .replace('#include <lights_physical_fragment>', THREE.ShaderChunk.lights_physical_fragment
-        .replace('material.specularColor = vec3( 0.04 );', 'material.specularColor = vec3( 0.015 );')
-        .replace('material.specularF90 = 1.0;', 'material.specularF90 = 0.5;'))
+
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix*vec4(tNW,0.)).xyz);');
+    mate(s);   // sin brillo rasante (ver materiales.js)
   };
   m.customProgramCacheKey = () => 'terreno' + m.defines.TRIPLANAR;
   return m;

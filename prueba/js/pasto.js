@@ -1,6 +1,7 @@
 // Pasto en la GPU: cada brizna se ubica en el shader según su número de instancia, en una cuadrícula fija del
 // mundo alrededor de la cámara. Altura y densidad salen de la textura de datos del terreno. Viento animado.
 import * as THREE from 'three';
+import { mate } from './materiales.js';
 
 export const PASTO = { alta: { lado: 260, radio: 42 }, media: { lado: 150, radio: 30 }, baja: { lado: 110, radio: 24 } };
 
@@ -29,6 +30,7 @@ const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 1,
     s.fragmentShader = 'varying float vG; varying float vGc; uniform vec3 uBase, uTip;\n' + s.fragmentShader
       .replace('vec4 diffuseColor = vec4( diffuse, opacity );',
         'vec3 gc = mix(uBase*mix(.75,1.15,vGc), uTip*mix(.8,1.2,vGc), vG); vec4 diffuseColor = vec4(gc*(.72+.28*vG), 1.);');
+    mate(s);
   };
   m.customProgramCacheKey = () => 'pasto';
   const mesh = new THREE.Mesh(g, m);

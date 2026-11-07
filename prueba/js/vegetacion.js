@@ -2,6 +2,7 @@
 // con versión cercana detallada (LOD0) y versión lejana simplificada (LOD1) que se reparten según la distancia.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mate, hacerMate } from './materiales.js';
 
 /** Mallas del modelo (o solo las del nodo cuyo nombre empieza por `nodo`), recentradas en x,z sobre el origen. */
 /** Tiempo compartido por el viento de todas las hojas. */
@@ -20,6 +21,7 @@ function materialHojas(src) {
       #endif
       float wo = dot(ip.xz, vec2(.13,.07)) + position.y*.08 + position.x*.05;
       transformed.xz += uv.y * .35 * vec2(sin(uTime*1.6+wo) + .4*sin(uTime*3.7+wo*1.7), cos(uTime*1.25+wo*1.3));`);
+    mate(s);
   };
   m.customProgramCacheKey = () => 'hojas';
   return m;
@@ -33,9 +35,9 @@ function partes(gltf, nodo) {
     if (!o.isMesh) return;
     const src = o.material;
     // ramas de EZ-Tree (Phong con el entorno como espejo) → Standard rugoso, como todo lo demás
-    const mat = src.name === 'leaves' ? materialHojas(src) : src.isMeshPhongMaterial
+    const mat = src.name === 'leaves' ? materialHojas(src) : hacerMate(src.isMeshPhongMaterial
       ? new THREE.MeshStandardMaterial({ map: src.map, normalMap: src.normalMap, normalScale: src.normalScale, aoMap: src.aoMap, color: src.color, roughness: 0.95, metalness: 0 })
-      : src.clone();
+      : src.clone());
     if (mat.alphaTest > 0 || mat.transparent) { mat.transparent = false; mat.alphaTest = Math.max(mat.alphaTest, 0.42); mat.alphaToCoverage = true; mat.side = THREE.DoubleSide; }
     mat.envMapIntensity = 0.8;
     out.push({ geo: o.geometry, mat, m: off.clone().multiply(o.matrixWorld) });
@@ -48,15 +50,16 @@ function crearImposter(renderer, ps) {
   const sc = new THREE.Scene(), obj = new THREE.Group(); sc.add(obj);
   for (const p of ps) { const m = new THREE.Mesh(p.geo, p.mat); m.applyMatrix4(p.m); obj.add(m); }
   obj.updateMatrixWorld(true);
-  sc.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a4028, 2.2)); const dl = new THREE.DirectionalLight(0xfff2dd, 2.4); dl.position.set(0.4, 1, 0.8); sc.add(dl);
+  sc.add(new THREE.HemisphereLight(0xcfdcf0, 0x2a3220, 1.3)); const dl = new THREE.DirectionalLight(0xfff2dd, 1.5); dl.position.set(0.4, 1, 0.8); sc.add(dl);   // misma escala de luz que la escena
   const box = new THREE.Box3().setFromObject(obj), sz = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
   const w = Math.max(sz.x, sz.z), h = sz.y, W = 256, H = Math.min(512, Math.round(256 * h / w / 64) * 64 || 256);
   const cam = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, w * 4); cam.position.set(c.x, c.y, c.z + w * 2); cam.lookAt(c);
-  const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 }); rt.texture.colorSpace = THREE.SRGBColorSpace;
+  const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter }); rt.texture.colorSpace = THREE.SRGBColorSpace;
+  // con mipmaps: sin ellos, a 150 m o más la textura se muestreaba con ruido y los árboles lejanos se veían salpicados y pálidos
   const prev = renderer.getRenderTarget(), pc = renderer.getClearColor(new THREE.Color()), pa = renderer.getClearAlpha();
   renderer.setRenderTarget(rt); renderer.setClearColor(0x3d4a2a, 0); renderer.clear(); renderer.render(sc, cam);
   renderer.setRenderTarget(prev); renderer.setClearColor(pc, pa);
-  const mat = new THREE.MeshStandardMaterial({ map: rt.texture, alphaTest: 0.45, side: THREE.DoubleSide, alphaToCoverage: true, roughness: 1, metalness: 0 });
+  const mat = hacerMate(new THREE.MeshStandardMaterial({ map: rt.texture, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 1, metalness: 0 }));
   const a = new THREE.PlaneGeometry(w, h); a.translate(c.x, c.y, 0);
   const b = a.clone(); b.rotateY(Math.PI / 2);
   const geo = mergeGeometries([a, b]);

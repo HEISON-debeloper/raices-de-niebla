@@ -40,7 +40,7 @@ const ESPECIES = [
 /** Genera un árbol EZ-Tree; la versión lejana tiene menos caras por rama y hojas más grandes y escasas. */
 function arbol(preset, semilla, lejos) {
   const t = new Tree(); t.loadPreset(preset); t.options.seed = semilla;
-  if (lejos) { const b = t.options.branch; for (const k in b.segments) b.segments[k] = Math.max(3, Math.round(b.segments[k] * 0.5)); for (const k in b.sections) b.sections[k] = Math.max(1, Math.round(b.sections[k] * 0.6)); t.options.leaves.count = Math.round(t.options.leaves.count * 0.5); t.options.leaves.size *= 1.4; t.options.leaves.billboard = 'single'; }
+  if (lejos) { const b = t.options.branch; for (const k in b.segments) b.segments[k] = Math.max(3, Math.round(b.segments[k] * 0.5)); for (const k in b.sections) b.sections[k] = Math.max(1, Math.round(b.sections[k] * 0.6)); t.options.leaves.count = Math.round(t.options.leaves.count * 0.6); t.options.leaves.size *= 1.3; }   // hojas dobles: las de un solo plano desaparecen vistas de canto
   t.generate(); t.updateMatrixWorld(true); return { scene: t };
 }
 // dpr: resolución máxima; min: hasta dónde puede bajar la resolución dinámica para sostener ~55 FPS
