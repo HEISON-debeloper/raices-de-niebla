@@ -44,6 +44,55 @@
     "texModelLod1": 256,
     "terrDiff": 2048,
     "terrNor": 2048,
-    "terrRough": 1024
-  }
+    "terrRough": 1024,
+    "porModelo": {
+      "boulder_01": {
+        "maxTris": 15000,
+        "lod1": 0.2,
+        "error": 0.5
+      },
+      "rock_moss_set_01": {
+        "maxTris": 15000,
+        "lod1": 0.08,
+        "error": 0.5
+      },
+      "rock_moss_set_02": {
+        "maxTris": 15000,
+        "lod1": 0.08,
+        "error": 0.5
+      },
+      "tree_stump_01": {
+        "maxTris": 10000,
+        "lod1": 0.1,
+        "error": 0.4
+      },
+      "dry_branches_medium_01": {
+        "maxTris": 8400,
+        "lod1": 0.15,
+        "error": 0.4
+      },
+      "grass_medium_01": {
+        "maxTris": 7400,
+        "lod1": 0.15,
+        "error": 0.3
+      },
+      "shrub_01": {
+        "maxTris": 24000,
+        "lod1": 0.1,
+        "error": 0.3
+      }
+    }
+  },
+  "json": [
+    "shrub_01",
+    "shrub_02",
+    "fern_02",
+    "grass_medium_01",
+    "grass_medium_02",
+    "rock_moss_set_01",
+    "rock_moss_set_02",
+    "boulder_01",
+    "tree_stump_01",
+    "dry_branches_medium_01"
+  ]
 }

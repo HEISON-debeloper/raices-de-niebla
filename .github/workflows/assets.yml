@@ -35,6 +35,8 @@ jobs:
           sed -i "s#const ROOT = .*#const ROOT = process.env.GITHUB_WORKSPACE;#" optimizar.mjs
           node optimizar.mjs
           du -sh "$GITHUB_WORKSPACE/prueba/assets"
+      - name: Copias .json incrustadas (el enlace de Claude no sirve .glb)
+        run: node tools/glb-a-json.mjs --lista
       - name: Guardar en el repositorio
         run: |
           git config user.name "github-actions[bot]"

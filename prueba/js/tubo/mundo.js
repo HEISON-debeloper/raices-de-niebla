@@ -1,83 +1,159 @@
-// Mundo-tubo (cilindro de O'Neill): el suelo es la cara interior de un cilindro de radio R que gira; "abajo" es hacia
-// afuera del eje. Todo se calcula en coordenadas DESENROLLADAS (planas): x = arco alrededor del tubo (periódico, C),
-// y = altura sobre el suelo (hacia el eje), z = a lo largo del eje (infinito). Solo al dibujar se enrolla (curva.js).
-// Relieve: RIOS ríos a lo largo del eje separados por cordilleras de ~400 m que suben de forma progresiva.
-// Las funciones existen dos veces, JS (caminar, nadar, sembrar) y GLSL (dibujar); deben coincidir (prueba numérica).
-import { fbm3, GLSL_RUIDO } from './ruido3.js';
+// Mundo-tubo v2 (cilindro de O'Neill): el suelo es la cara interior de un cilindro de radio R. Todo se calcula en
+// coordenadas DESENROLLADAS: x = arco alrededor del tubo (periódico, C), y = altura (hacia el eje), z = a lo largo
+// del eje (infinito). Solo al dibujar se enrolla (curva.js).
+//
+// Relieve (de grande a pequeño):
+//  · 3 ríos principales a lo largo del eje (enorme, mediano, pequeño) que desembocan en MARES: anillos de agua que
+//    rodean el tubo cada PZ metros. Entre ríos, cordilleras cuya altura varía por región (colinas ~180 m … nevados ~560 m).
+//  · Lagos en las cumbres (uno por celda de ~1 km, si hay montaña) de los que baja un arroyo serpenteante hasta el
+//    río más cercano, con cascadas; nacederos (manantiales) sin lago. Pantanos en los valles bajos y junto al mar.
+//  · Volcanes de distintos tamaños con cráter y lago de lava.
+// Las funciones existen dos veces, JS (caminar, nadar, sembrar) y GLSL (dibujar, en mundo-glsl.js) y deben
+// coincidir: hay una prueba numérica (error medido < 2 cm).
+import { fbm3, hash3 } from './ruido3.js';
 
 export const R = 1000, C = 2 * Math.PI * R, WATER_Y = 0, RIOS = 3;
+export const PZ = 16000, ZMAR = 8000, SW = 1500;          // mares: periodo a lo largo del eje, centro, semiancho
+export const NIEVE = 400, ARBOL_MAX = 320;                 // línea de nieve y límite de árboles (m)
+const LX = C / 6, LZ = 1024, VX = C / 3, VZ = 3000;        // celdas de lagos y de volcanes
+const ANCHO = [45, 16, 7], HONDO = [8, 5.5, 3];            // ríos principales: semiancho base y profundidad
+
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-
-/** Centro del río k en función de z (en metros de arco). */
-export const rioU = (k, z) => k * C / RIOS + 300 + 70 * Math.sin(z / 260 + k * 2.1) + 25 * Math.sin(z / 83 + k * 1.3);
-
-/** Distancia (en arco) al río más cercano. */
-export function distRio(x, z) {
-  let m = 1e9;
-  for (let k = 0; k < RIOS; k++) { let d = x - rioU(k, z); d -= C * Math.floor(d / C + 0.5); m = Math.min(m, Math.abs(d)); }
-  return m;
-}
-
+const cl = (x, a, b) => Math.min(b, Math.max(a, x));
+/** Lleva x al tramo [-C/2, C/2) alrededor de ref (el mundo se repite cada C en x). */
+export const envolver = (x, ref = 0) => x - C * Math.floor((x - ref) / C + 0.5);
 // ruido sobre la superficie del cilindro: periódico en x sin costura
-function f(x, z, s, ox, oy, oz, oct) { const a = x / R; return fbm3(R * Math.cos(a) / s + ox, R * Math.sin(a) / s + oy, z / s + oz, oct); }
+const f = (x, z, s, ox, oy, oz, oct) => { const a = x / R; return fbm3(R * Math.cos(a) / s + ox, R * Math.sin(a) / s + oy, z / s + oz, oct); };
 
-export function alturaFn(x, z) {
-  const d = distRio(x, z);
-  let h = 1.2 + 0.03 * d + (f(x, z, 60, 0, 0, 0, 4) - 0.5) * 6 * sm(12, 40, d);
-  const t = Math.min(1, Math.max(0, (d - 60) / 950));
-  h += 340 * Math.pow(t, 1.4) * (0.85 + 0.3 * f(x, z, 1100, 7.3, -2.9, 1.1, 3));
-  h += 18 * (f(x, z, 260, 1.7, 5.1, -3.3, 4) - 0.5) * sm(40, 320, d);
-  h += 4 * (f(x, z, 55, -4.2, 2.2, 8.8, 3) - 0.5) * sm(30, 200, d);
-  const c = 1 - sm(7, 17, d);
-  if (c > 0) {   // cauce hondo (hasta ~7 m): se puede bucear por debajo
-    const fondo = -1.5 - 5.5 * Math.pow(1 - sm(0, 13, d), 0.8) + 0.8 * (f(x, z, 9, 3.1, 1.9, -6.2, 2) - 0.5);
-    h = h * (1 - c) + fondo * c;
-  }
+/** Centro del río principal k según z (en metros de arco). */
+export const rioU = (k, z) => k * C / RIOS + 300 + 70 * Math.sin(z / 260 + k * 2.1) + 25 * Math.sin(z / 83 + k * 1.3);
+/** Río principal más cercano: distancia en arco, índice y semiancho en este z. */
+export function rio(x, z) {
+  let m = 1e9, k = 0;
+  for (let i = 0; i < RIOS; i++) { const d = Math.abs(envolver(x - rioU(i, z))); if (d < m) { m = d; k = i; } }
+  return { d: m, k, w: ANCHO[k] * (0.8 + 0.4 * Math.sin(z / 350 + 2.1 * k)) };
+}
+/** Mar más cercano: distancia a su centro a lo largo del eje y máscara 0–1. */
+export function mar(z) { const dz = Math.abs(z - (Math.round((z - ZMAR) / PZ) * PZ + ZMAR)); return { dz, m: 1 - sm(SW, SW + 600, dz) }; }
+
+/** Relieve suave (sin detalle fino): base de las montañas, y nivel de referencia de lagos y arroyos. */
+export function hsuave(x, z, r = rio(x, z)) {
+  const d = r.d, t = cl((d - 60) / 1000, 0, 1);
+  const reg = 0.85 + 0.3 * f(x, z, 1100, 7.3, -2.9, 1.1, 3), amp = 340 * (0.5 + 0.9 * f(x, z, 2600, -11.2, 4.4, 2.7, 2));
+  let h = 1.2 + 0.03 * d + amp * Math.pow(t, 1.4) * reg;
+  h += 45 * (f(x, z, 600, 3.3, -8.1, 5.5, 3) - 0.5) * sm(80, 400, d) + 18 * (f(x, z, 260, 1.7, 5.1, -3.3, 4) - 0.5) * sm(40, 320, d);
+  const M = mar(z);
+  if (M.m > 0) { const hm = -8 - 55 * (1 - sm(500, 1400, M.dz)) + 270 * Math.max(0, f(x, z, 700, -2.2, 6.6, -4.4, 3) - 0.62); h = h * (1 - M.m) + hm * M.m; }
   return h;
 }
 
-/** Bosque 0–1: manchas en el valle y bosque de niebla en las laderas hasta el límite de árboles (~330 m). */
-export function bosqueFn(x, z, h) {
-  const d = distRio(x, z);
-  const v = sm(0.5, 0.6, f(x, z, 140, 11, -7, 2, 3)) * sm(20, 55, d);
-  const l = sm(0.38, 0.5, f(x, z, 90, -5, 3, 9, 3)) * sm(25, 60, h);
-  return Math.max(v, l) * (1 - sm(300, 360, h));
+/** Lago (o nacedero) de la celda (i, j), o null. Determinista: misma celda → mismo lago. */
+const cacheLagos = new Map();
+export function lago(i, j) {
+  const key = i + ',' + j; if (cacheLagos.has(key)) return cacheLagos.get(key);
+  let L = null; const im = i - 6 * Math.floor(i / 6), p = hash3(im, j, 501);
+  if (p < 0.8) {
+    const nac = p >= 0.62, cx = (i + 0.15 + 0.7 * hash3(im, j, 502)) * LX, cz = (j + 0.15 + 0.7 * hash3(im, j, 503)) * LZ;
+    const rr = rio(cx, cz), hc = hsuave(cx, cz, rr);
+    if (mar(cz).dz > SW + 900 && rr.d > 260 && hc > 80) {
+      const dx = envolver(rioU(rr.k, cz) - cx), sgn = dx < 0 ? -1 : 1, rL = nac ? 3 : 30 + 70 * hash3(im, j, 504);
+      const nF = Math.floor(hash3(im, j, 509) * 3), Len = Math.abs(dx) - rr.w * 0.5;
+      L = { cx, cz, rL, L: hc - (nac ? 0.8 : 6), sgn, Len, ws: 1.5 + 3 * hash3(im, j, 505), ds: 1 + 0.9 * hash3(im, j, 506),
+        f1: hash3(im, j, 507) * 6.2832, f2: hash3(im, j, 508) * 6.2832, nF,
+        sF: [Len * (0.2 + 0.3 * hash3(im, j, 510)), Len * (0.55 + 0.3 * hash3(im, j, 512))], HF: [6 + 18 * hash3(im, j, 511), 6 + 18 * hash3(im, j, 513)] };
+    }
+  }
+  cacheLagos.set(key, L); return L;
+}
+/** ¿Algún lago o arroyo pasa por el círculo (cx, cz, rV)? (los volcanes no se ponen encima) */
+function lagoCerca(cx, cz, rV) {
+  const li = Math.floor(cx / LX), lj = Math.floor(cz / LZ);
+  for (let dj = -1; dj <= 1; dj++) for (let di = -2; di <= 2; di++) {
+    const L = lago(li + di, lj + dj); if (!L) continue;
+    const dx = envolver(cx - L.cx), dz = cz - L.cz;
+    if (Math.hypot(dx, dz) < rV + 60) return true;
+    const rc = rV * 0.18 * 2.5 + 40, sv = dx * L.sgn; if (Math.abs(dz) < rc && sv > -rc && sv < L.Len + rc) return true;   // el arroyo puede cruzar la falda, no el cráter
+  }
+  return false;
+}
+/** Volcán de la celda (i, j), o null. */
+const cacheVolc = new Map();
+export function volcan(i, j) {
+  const key = i + ',' + j; if (cacheVolc.has(key)) return cacheVolc.get(key);
+  let V = null; const im = i - 3 * Math.floor(i / 3), p = hash3(im, j, 701);
+  if (p < 0.45) {
+    const cx = (i + 0.25 + 0.5 * hash3(im, j, 702)) * VX, cz = (j + 0.25 + 0.5 * hash3(im, j, 703)) * VZ, rV = 250 + 450 * hash3(im, j, 704);
+    const rr = rio(cx, cz);
+    if (mar(cz).dz > SW + rV + 300 && rr.d > rV * 0.5 && !lagoCerca(cx, cz, rV)) V = { cx, cz, rV, HV: rV * (0.18 + 0.12 * hash3(im, j, 705)), rc: rV * 0.18, base: hsuave(cx, cz, rr) };
+  }
+  cacheVolc.set(key, V); return V;
 }
 
+/** Todo lo que define un punto del mundo: altura, nivel de agua local, máscaras. */
+export function datos(x, z) {
+  const r = rio(x, z), M = mar(z), d = r.d;
+  let h = hsuave(x, z, r);
+  h += 6 * (f(x, z, 60, 0, 0, 0, 4) - 0.5) * sm(12, 40, d) + 4 * (f(x, z, 55, -4.2, 2.2, 8.8, 3) - 0.5) * sm(30, 200, d);
+  // pantanos: valle bajo del río grande y franja detrás de la costa
+  let sw = sm(0.56, 0.68, f(x, z, 220, 9.9, -1.1, 3.7, 3)) * Math.max((1 - sm(60, 160, d)) * (r.k === 0 ? 1 : 0.3), sm(SW + 150, SW + 500, M.dz) * (1 - sm(SW + 600, SW + 900, M.dz)));
+  sw *= (1 - sm(3, 8, h)) * (1 - M.m);
+  if (sw > 0) h = h * (1 - sw) + (0.25 + 1.4 * (f(x, z, 16, 2.5, 7.5, -1.5, 2) - 0.5)) * sw;
+  let W = 0, lava = 0, vm = 0, arroyo = 0, cuenco = 0;
+  // lagos y arroyos (celda propia y vecinas)
+  const ci = Math.floor(x / LX), cj = Math.floor(z / LZ);
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const Lg = lago(ci + di, cj + dj); if (!Lg) continue;
+    const dzp = z - Lg.cz; if (Math.abs(dzp) > 170) continue;
+    const dxp = envolver(x - Lg.cx), dl = Math.hypot(dxp, dzp), rL = Lg.rL;
+    if (dl < rL + 60) {   // cuenco y borde (presa natural)
+      cuenco = 1;
+      const bowl = Lg.L - 1 - 9 * (1 - sm(0, rL, dl)), hb = Math.min(h, bowl), wIn = 1 - sm(0, 1, (dl - rL) / (2 + 2.5 * (h - hb)));
+      h = h * (1 - wIn) + hb * wIn;
+      const dr = Math.max(0, Lg.L + 2.5 - h), o = rL + Math.max(20, 8 + 1.3 * dr), wRim = sm(rL, rL + 3 + 1.3 * dr, dl) * (1 - sm(o, o + 4 + 2.5 * dr, dl));
+      h = h * (1 - wRim) + (h + dr) * wRim;
+      W = Math.max(W, Lg.L);   // el agua llena todo lo que quede por debajo del nivel
+    }
+    const s = cl(dxp * Lg.sgn, 0, Lg.Len), mnd = 25 * Math.sin(s / 90 + Lg.f1) + 10 * Math.sin(s / 37 + Lg.f2), lat = Math.abs(dzp - mnd);
+    if (s > rL * 0.5 && lat < 70 && s < Lg.Len - 0.01) {
+      // nivel del agua: mínimo de 5 muestras aguas arriba (nunca sube), nunca por encima del lago
+      let Ws = 1e9; for (let q = 0; q < 5; q++) { const sq = Math.max(rL * 0.5, s - 40 * q); Ws = Math.min(Ws, hsuave(Lg.cx + Lg.sgn * sq, Lg.cz + 25 * Math.sin(sq / 90 + Lg.f1) + 10 * Math.sin(sq / 37 + Lg.f2))); }
+      Ws = Math.min(Ws - 1.5, Lg.L); Ws = Math.min(Ws, Math.max(0, (d - r.w * 0.6) * 0.3));
+      // cascadas: escalón en el agua y en el terreno (corredor que se desvanece a lo ancho)
+      let D = 0; for (let q = 0; q < Lg.nF; q++) D += Lg.HF[q] * (1 - sm(Lg.sF[q] - 3, Lg.sF[q], s)) * sm(Lg.sF[q] - 220, Lg.sF[q] - 30, s);   // aguas arriba el terreno sube hasta un escarpe
+      Ws += D; h += D * (1 - sm(40, 70, lat));
+      const ws = Lg.ws, fondo = Ws - Lg.ds * (1 - sm(0, ws, lat)), hc = Math.min(h, fondo);
+      const cw = 1 - sm(ws, ws + 2 + 1.5 * (h - hc), lat);   // paredes del cauce: a lo sumo ~40°
+      h = h * (1 - cw) + hc * cw;
+      const dr = Math.max(0, Ws + 0.35 - h), bw = sm(ws * 0.6, ws * 0.9, lat) * (1 - sm(ws * 1.8, ws * 1.8 + 1 + 1.5 * dr, lat)) * sm(rL * 0.95, rL + 5, dl);
+      h = h * (1 - bw) + (h + dr) * bw;
+      if (lat < ws * 1.5) W = Math.max(W, Ws);
+      if (lat < ws * 2.6) arroyo = 1;
+    }
+  }
+  // volcanes
+  const vi = Math.floor(x / VX), vj = Math.floor(z / VZ);
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const V = volcan(vi + di, vj + dj); if (!V) continue;
+    const dl = Math.hypot(envolver(x - V.cx), z - V.cz); if (dl > V.rV) continue;
+    const cono = V.HV * Math.pow(1 - sm(0, V.rV, dl), 1.6) - 0.25 * V.HV * (1 - sm(V.rc * 0.8, V.rc * 1.3, dl));
+    h += cono * (1 + 0.03 * (f(x, z, 40, 1, 1, 1, 2) - 0.5)); vm = Math.max(vm, 1 - sm(V.rV * 0.85, V.rV * 1.05, dl));
+    if (dl < V.rc * 1.2) { W = Math.max(W, V.base + 0.74 * V.HV); lava = 1; }
+  }
+  // cauce del río principal (al final: corta todo lo demás)
+  const w = r.w, c = 1 - sm(w * 0.5, w * 0.5 + Math.max(0.8 * w, 14), d);
+  if (c > 0) { const fondo = -1.5 - HONDO[r.k] * (w / ANCHO[r.k]) * Math.pow(1 - sm(0, w * 0.45, d), 0.8) + 0.8 * (f(x, z, 9, 3.1, 1.9, -6.2, 2) - 0.5); h = h * (1 - c) + fondo * c; }
+  // máscaras
+  const nieve = sm(NIEVE - 25, NIEVE + 25, h + 25 * (f(x, z, 80, 5, 5, 5, 2) - 0.5)) * (1 - vm);
+  const hum = f(x, z, 900, -7.7, 1.2, 9.3, 2);
+  const sel = sm(0.42, 0.55, f(x, z, 140, 11, -7, 2, 3)) * (1 - sm(90, 140, h)) * (0.6 + 0.4 * hum);
+  const bos = sm(0.45, 0.58, f(x, z, 90, -5, 3, 9, 3)) * sm(25, 60, h) * (1 - sm(ARBOL_MAX - 30, ARBOL_MAX + 30, h));
+  const bosque = Math.max(sel, bos * 0.85) * (1 - nieve) * (1 - vm) * (1 - M.m) * (1 - 0.7 * sw) * sm(0.6, 1.8, h - W);
+  return { h, W, lava, nieve, pantano: sw, volcan: vm, bosque, hum, mar: M.m, rio: r, arroyo, cuenco };
+}
+
+export const alturaFn = (x, z) => datos(x, z).h;
+export const aguaFn = (x, z) => datos(x, z).W;
 export function normalFn(x, z, e = 1) {
   const h = alturaFn(x, z), a = alturaFn(x + e, z), b = alturaFn(x, z + e), l = Math.hypot(h - a, e, h - b);
   return { x: (h - a) / l, y: e / l, z: (h - b) / l };
 }
-
-/** Lleva x al tramo [-C/2, C/2) alrededor de ref (el mundo se repite cada C en x). */
-export const envolver = (x, ref = 0) => x - C * Math.floor((x - ref) / C + 0.5);
-
-export const GLSL_MUNDO = GLSL_RUIDO + /* glsl */`
-#define TR 1000.
-#define TC 6283.185307179586
-float smt(float a, float b, float x){ float t=clamp((x-a)/(b-a),0.,1.); return t*t*(3.-2.*t); }
-float distRio(vec2 p){
-  float m=1e9;
-  for(int k=0;k<3;k++){ float fk=float(k); float u=fk*TC/3.+300.+70.*sin(p.y/260.+fk*2.1)+25.*sin(p.y/83.+fk*1.3);
-    float d=p.x-u; d-=TC*floor(d/TC+.5); m=min(m,abs(d)); }
-  return m;
-}
-float fc(vec2 p, float s, vec3 o, int oct){ float a=p.x/TR; return fbm3(vec3(TR*cos(a)/s, TR*sin(a)/s, p.y/s)+o, oct); }
-float alturaFn(vec2 p){
-  float d=distRio(p);
-  float h=1.2+.03*d+(fc(p,60.,vec3(0.),4)-.5)*6.*smt(12.,40.,d);
-  float t=clamp((d-60.)/950.,0.,1.);
-  h+=340.*pow(t,1.4)*(.85+.3*fc(p,1100.,vec3(7.3,-2.9,1.1),3));
-  h+=18.*(fc(p,260.,vec3(1.7,5.1,-3.3),4)-.5)*smt(40.,320.,d);
-  h+=4.*(fc(p,55.,vec3(-4.2,2.2,8.8),3)-.5)*smt(30.,200.,d);
-  float c=1.-smt(7.,17.,d);
-  if(c>0.){ float fondo=-1.5-5.5*pow(1.-smt(0.,13.,d),.8)+.8*(fc(p,9.,vec3(3.1,1.9,-6.2),2)-.5); h=h*(1.-c)+fondo*c; }
-  return h;
-}
-float bosqueFn(vec2 p, float h){
-  float d=distRio(p);
-  float v=smt(.5,.6,fc(p,140.,vec3(11.,-7.,2.),3))*smt(20.,55.,d);
-  float l=smt(.38,.5,fc(p,90.,vec3(-5.,3.,9.),3))*smt(25.,60.,h);
-  return max(v,l)*(1.-smt(300.,360.,h));
-}
-`;

@@ -22,12 +22,12 @@ for (const id of cfg.models.ids) {
   const g = fs.readdirSync(dir).find(f => f.endsWith('.gltf')); if (!g) continue;
   try {
     const src = path.join(dir, g); let doc = await io.read(src); const t0 = tris(doc);
-    const r0 = Math.min(1, O.maxTris / t0);
-    await doc.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: r0, error: 0.01 }), dedup(), prune(),
+    const PM = (O.porModelo || {})[id] || {}, r0 = Math.min(1, (PM.maxTris || O.maxTris) / t0);   // rocas y tocones: más simplificación (se ven de lejos y en cantidad)
+    await doc.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: r0, error: PM.error ? PM.error * 0.5 : 0.01 }), dedup(), prune(),
       textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [O.texModel, O.texModel], quality: 85 }), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
     const t1 = tris(doc); const f0 = path.join(OUT, 'models', id + '.glb'); await io.write(f0, doc);
     let d2 = await io.read(src);
-    await d2.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: r0 * O.lod1, error: 0.08 }), dedup(), prune(),
+    await d2.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: r0 * (PM.lod1 || O.lod1), error: PM.error || 0.08, lockBorder: false }), dedup(), prune(),
       textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [O.texModelLod1, O.texModelLod1], quality: 80 }), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
     const t2 = tris(d2); const f1 = path.join(OUT, 'models', id + '_lod1.glb'); await io.write(f1, d2);
     rep.modelos[id] = { trisOriginal: t0, tris: t1, trisLod1: t2, kb: Math.round(fs.statSync(f0).size / 1024), kbLod1: Math.round(fs.statSync(f1).size / 1024) };

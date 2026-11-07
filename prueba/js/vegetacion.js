@@ -70,18 +70,20 @@ function crearImposter(renderer, ps) {
 
 export class Especie {
   constructor(nombre, g0, g1, max, opts = {}) {
-    this.nombre = nombre; this.max = max; this.near = opts.near ?? 70; this.mid = opts.mid ?? Infinity; this.far = opts.far ?? 700; this.items = [];
+    this.nombre = nombre; this.max = Array.isArray(max) ? Math.min(...max) : max; this.near = opts.near ?? 70; this.mid = opts.mid ?? Infinity; this.far = opts.far ?? 700; this.items = [];
     this.grupo = new THREE.Group();
     const P0 = partes(g0, opts.nodo), P1 = g1 ? partes(g1, opts.nodo) : null;
-    const mk = (ps, sombra) => ps.map(p => {
-      const im = new THREE.InstancedMesh(p.geo, p.mat, max); im.count = 0; im.userData.max = max; im.frustumCulled = false;
+    const caps = Array.isArray(max) ? max : [max, max, max];   // capacidad por nivel de detalle (cerca, lejos, imposter)
+    this.caps = caps;
+    const mk = (ps, sombra, cap) => ps.map(p => {
+      const im = new THREE.InstancedMesh(p.geo, p.mat, cap); im.count = 0; im.userData.max = cap; im.frustumCulled = false;
       im.castShadow = sombra; im.receiveShadow = true; im.userData.m = p.m; this.grupo.add(im); return im;
     });
-    this.l0 = mk(P0, true); this.l1 = P1 ? mk(P1, opts.sombraLejos ?? true) : null;
+    this.l0 = mk(P0, true, caps[0]); this.l1 = P1 ? mk(P1, opts.sombraLejos ?? true, caps[1]) : null;
     this.l2 = null;
     if (opts.renderer && g1 && isFinite(this.mid)) {
-      const im = crearImposter(opts.renderer, P1), m = new THREE.InstancedMesh(im.geo, im.mat, max);
-      m.count = 0; m.userData.max = max; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.userData.m = new THREE.Matrix4(); this.grupo.add(m); this.l2 = [m];
+      const im = crearImposter(opts.renderer, P1), m = new THREE.InstancedMesh(im.geo, im.mat, caps[2]);
+      m.count = 0; m.userData.max = caps[2]; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.userData.m = new THREE.Matrix4(); this.grupo.add(m); this.l2 = [m];
     }
     this.tris = [P0, P1].map(ps => (ps || []).reduce((n, p) => n + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0));
   }
@@ -89,6 +91,24 @@ export class Especie {
   colocar(items) {
     const q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3();
     this.items = items.map(it => { e.set(0, it.ry, 0); q.setFromEuler(e); return { p: new THREE.Vector3(it.x, it.y, it.z), M: new THREE.Matrix4().compose(v.set(it.x, it.y, it.z), q, s.setScalar(it.s)) }; });
+  }
+  /** Modo por celdas (tubo): Flora decide qué celdas se ven y llama agregar() por cada instancia. */
+  inicio(k = 1) { this.c = [0, 0, 0]; this.n2 = (this.near * k) ** 2; this.m2 = (this.mid * k) ** 2; this.f2 = (this.far * Math.max(k, 0.75)) ** 2; this.tmp = this.tmp || new THREE.Matrix4(); }
+  agregar(M, d2) {
+    if (d2 > this.f2) return;
+    const c = this.c;
+    if (this.l2 && d2 > this.m2) { if (c[2] < this.caps[2]) this.l2[0].setMatrixAt(c[2]++, M); return; }
+    const lejos = this.l1 && d2 > this.n2, set = lejos ? this.l1 : this.l0, j = lejos ? 1 : 0;
+    if (c[j] >= this.caps[j]) return;
+    const i = c[j]++;
+    for (const im of set) im.setMatrixAt(i, this.tmp.multiplyMatrices(M, im.userData.m));
+  }
+  fin() {
+    const c = this.c;
+    for (const im of this.l0) { im.count = c[0]; im.instanceMatrix.needsUpdate = true; }
+    if (this.l1) for (const im of this.l1) { im.count = c[1]; im.instanceMatrix.needsUpdate = true; }
+    if (this.l2) { this.l2[0].count = c[2]; this.l2[0].instanceMatrix.needsUpdate = true; }
+    this.visibles = c;
   }
   /** Reparte cada instancia entre detalle cercano y lejano, y descarta lo que está fuera de la vista
    *  (con margen para no perder sombras de lo que está justo detrás). k escala las distancias según la calidad. */

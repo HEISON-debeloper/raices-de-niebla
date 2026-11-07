@@ -1,31 +1,53 @@
-// Agua del tubo: los mismos anillos del terreno a altura 0 (el agua se ve en todo el mundo y sigue la curva).
-// Donde el suelo está por encima, el terreno la tapa. Doble cara: desde abajo se ve la superficie al bucear.
+// Agua del tubo: los mismos anillos del terreno, con la altura del NIVEL DE AGUA LOCAL de la textura del nivel (mar y
+// ríos a 0, lagos de montaña y arroyos a su cota, lava en los cráteres). Se dibuja solo donde el agua queda por encima
+// del terreno (misma malla y misma interpolación: el borde coincide exacto con la orilla). Doble cara: al bucear se ve
+// la superficie desde abajo. Donde la superficie es casi vertical (cascadas) se vuelve espuma blanca que cae.
 import * as THREE from 'three';
 import { normalesAgua } from '../agua.js';
-import { GLSL_MUNDO, WATER_Y } from './mundo.js';
 import { GEOS, GLSL_NIVEL, U_CAM } from './terreno.js';
 import { curvar } from './curva.js';
 
-export function crearAgua() {
-  const U = { uTime: { value: 0 }, uNor: { value: normalesAgua() }, uCam: U_CAM, uAguaY: { value: WATER_Y } };
-  const m = new THREE.MeshStandardMaterial({ color: 0x15332d, roughness: 0.14, metalness: 0, envMapIntensity: 0.4, side: THREE.DoubleSide });
-  m.onBeforeCompile = s => {
-    Object.assign(s.uniforms, U);
-    s.vertexShader = 'varying vec3 vWPa; uniform float uAguaY;\n' + GLSL_MUNDO + GLSL_NIVEL + s.vertexShader
-      .replace('#include <beginnormal_vertex>', 'float sN; vec2 q = nivelXZ(sN); vec3 objectNormal = vec3(0.,1.,0.);')
-      .replace('#include <begin_vertex>', 'vec3 transformed = vec3(q.x, uAguaY, q.y); vWPa = transformed;');
-    s.fragmentShader = 'varying vec3 vWPa; uniform float uTime; uniform sampler2D uNor;\n' + GLSL_MUNDO + s.fragmentShader
-      .replace('#include <opaque_fragment>', 'outgoingLight *= mix(1., .45, smoothstep(250., 1200., length(vWPa - cameraPosition)));\n#include <opaque_fragment>').replace('#include <normal_fragment_maps>', /* glsl */`
-      if (distRio(vWPa.xz) > 19.) discard;   // solo en los cauces: lejos el terreno es más grueso que un río y el agua asomaba en manchas
-      vec2 ua = vWPa.xz*.055 + uTime*vec2(.018,.011), ub = vWPa.xz*.17 + uTime*vec2(-.013,.021);
-      vec3 na = texture2D(uNor,ua).xyz*2.-1., nb = texture2D(uNor,ub).xyz*2.-1.;
-      float fade = 1.-smoothstep(60.,220.,length(vWPa.xz-cameraPosition.xz));
-      vec2 d = (na.xy*.6 + nb.xy*.4) * .32 * fade;
-      normal = normalize((viewMatrix*vec4(normalize(vec3(d.x,1.,d.y)),0.)).xyz) * (gl_FrontFacing ? 1. : -1.);`);
-    curvar(s);
-  };
-  m.customProgramCacheKey = () => 'aguaTubo';
+export function crearAgua(niveles) {
+  const U = { uTime: { value: 0 }, uNor: { value: normalesAgua() }, uCam: U_CAM };
+  const mats = niveles.map(N => {
+    const m = new THREE.MeshStandardMaterial({ color: 0x15332d, roughness: 0.14, metalness: 0, envMapIntensity: 0.4, side: THREE.DoubleSide });
+    m.onBeforeCompile = s => {
+      Object.assign(s.uniforms, U, { uNiv: N.uNiv, texA: { value: N.texA }, texB: { value: N.texB } });
+      s.vertexShader = 'varying vec3 vWPa; varying float vV; varying float vLava; varying vec3 vNa;\n' + GLSL_NIVEL + s.vertexShader
+        .replace('#include <beginnormal_vertex>', /* glsl */`
+          vec2 pp = nivelPP(), q = nivelXZ(pp); float s = uNiv.z;
+          vec4 A = leerA(pp); float W = aguaDe(A), h = alturaDe(A);
+          float wx1 = aguaDe(leerA(pp + vec2(1., 0.))), wx0 = aguaDe(leerA(pp - vec2(1., 0.)));
+          float wz1 = aguaDe(leerA(pp + vec2(0., 1.))), wz0 = aguaDe(leerA(pp - vec2(0., 1.)));
+          vec3 objectNormal = normalize(vec3(wx0 - wx1, 2.*s, wz0 - wz1)); vNa = objectNormal;
+          vec4 B = texture2D(texB, uvNivel(pp)); vV = W - h; vLava = (B.a > .5 && W > 30.) ? 1. : 0.;`)
+        .replace('#include <begin_vertex>', 'vec3 transformed = vec3(q.x, W, q.y); vWPa = transformed;');
+      s.fragmentShader = 'varying vec3 vWPa; varying float vV; varying float vLava; varying vec3 vNa; uniform float uTime; uniform sampler2D uNor;\n' + s.fragmentShader
+        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n if (vV < 0.) discard;')
+        .replace('#include <normal_fragment_maps>', /* glsl */`
+          vec2 ua = vWPa.xz*.055 + uTime*vec2(.018,.011), ub = vWPa.xz*.17 + uTime*vec2(-.013,.021);
+          vec3 na = texture2D(uNor,ua).xyz*2.-1., nb = texture2D(uNor,ub).xyz*2.-1.;
+          float fade = 1.-smoothstep(60.,220.,length(vWPa.xz-cameraPosition.xz));
+          float caida = smoothstep(.25,.6,1.-normalize(vNa).y);                                  // cascada: superficie casi vertical
+          vec2 d = (na.xy*.6 + nb.xy*.4) * .32 * fade * (1.-caida);
+          vec3 nG = normalize(vNa);
+          vec3 nW = normalize(nG + vec3(d.x, 0., d.y));
+          normal = normalize((viewMatrix*vec4(nW,0.)).xyz) * (gl_FrontFacing ? 1. : -1.);`)
+        .replace('#include <roughnessmap_fragment>', /* glsl */`
+          float roughnessFactor = roughness;
+          float caidaR = smoothstep(.25,.6,1.-normalize(vNa).y);
+          float esp = texture2D(uNor, vec2(vWPa.x*.21, vWPa.y*.08 + uTime*.9)).x * texture2D(uNor, vec2(vWPa.z*.17+.3, vWPa.y*.05 + uTime*1.4)).y;
+          roughnessFactor = mix(roughnessFactor, .95, max(caidaR, vLava));
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.75,.8,.85)*(.4+.65*esp), caidaR*.9);     // espuma que cae (con vetas: no un plano blanco)
+          if (vLava > .5) { float cr = texture2D(uNor, vWPa.xz*.03).z, cr2 = texture2D(uNor, vWPa.xz*.11 + uTime*.004).x;   // lava: costra oscura con grietas que brillan
+            float grieta = smoothstep(.55,.75,cr*.6+cr2*.4); diffuseColor.rgb = mix(vec3(.05,.04,.035), vec3(.2,.08,.03), grieta); totalEmissiveRadiance += mix(vec3(0.), vec3(4.,1.1,.15)*(.7+.3*sin(uTime*2.+cr*30.)), grieta); }`)
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>');
+      curvar(s);
+    };
+    m.customProgramCacheKey = () => 'aguaTubo';
+    return m;
+  });
   const grupo = new THREE.Group();
-  for (const g of GEOS) { const me = new THREE.Mesh(g, m); me.frustumCulled = false; me.receiveShadow = true; me.renderOrder = 1; grupo.add(me); }
+  GEOS.forEach((g, l) => { const me = new THREE.Mesh(g, mats[l]); me.frustumCulled = false; me.receiveShadow = true; me.renderOrder = 1; grupo.add(me); });
   return { grupo, calidad() {}, update(t) { U.uTime.value = t; } };
 }

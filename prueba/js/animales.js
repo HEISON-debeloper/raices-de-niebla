@@ -45,7 +45,7 @@ export class Manada {
         if (d < 1.5 || (a.estado === 'correr' && dj > 45)) { a.centro.set(p.x, 0, p.z); this.cambiar(a, a.estado === 'correr' ? 'quieto' : (this.rnd() < 0.7 ? 'comer' : 'quieto')); }
       }
       let nx = p.x + Math.sin(a.dir) * a.vel * dt, nz = p.z + Math.cos(a.dir) * a.vel * dt;
-      if (T.heightAt(nx, nz) < 0.4 || T.normalAt(nx, nz).y < 0.8) { a.dir += Math.PI * 0.6; nx = p.x; nz = p.z; }   // no entra al río ni a laderas
+      if (T.heightAt(nx, nz) < (T.waterAt ? T.waterAt(nx, nz) : 0) + 0.4 || T.normalAt(nx, nz).y < 0.8) { a.dir += Math.PI * 0.6; nx = p.x; nz = p.z; }   // no entra al agua ni a laderas
       p.x = nx; p.z = nz; p.y = T.heightAt(p.x, p.z);
       const n = T.normalAt(p.x, p.z);
       // inclina el cuerpo según la pendiente: hacia adelante (cabeceo) y de lado (alabeo)
