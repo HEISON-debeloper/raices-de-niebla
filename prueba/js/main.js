@@ -86,6 +86,8 @@ function montarComposer() {
 
 // ---------- carga ----------
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+/** Modelo .glb; si el servidor no lo sirve (el enlace de Claude no sirve .glb) usa la copia .json con todo incrustado. */
+const cargarModelo = base => loader.loadAsync(base + '.glb').catch(() => loader.loadAsync(base + '.json'));
 const tl = new THREE.TextureLoader();
 const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 function tex(url, srgb) {
@@ -106,9 +108,9 @@ async function iniciar() {
     paso(tex(`assets/tex/${id}/Diffuse.webp`, true), 'Texturas del suelo…'), paso(tex(`assets/tex/${id}/nor_gl.webp`)), paso(tex(`assets/tex/${id}/Rough.webp`)),
   ]).then(([d, n, r]) => { T[k] = { d, n, r }; }));
   const cache = new Map();
-  const glb = id => { if (!cache.has(id)) cache.set(id, paso(loader.loadAsync(`assets/models/${id}.glb`), 'Árboles y rocas…').catch(e => { datos.errores.push(id + ': ' + e.message); return null; })); return cache.get(id); };
+  const glb = id => { if (!cache.has(id)) cache.set(id, paso(cargarModelo(`assets/models/${id}`), 'Árboles y rocas…').catch(e => { datos.errores.push(id + ': ' + e.message); return null; })); return cache.get(id); };
   const modelos = ESPECIES.map(e => Promise.all([glb(e.id), glb(e.id + '_lod1')]).then(([a, b]) => ({ e, a, b })));
-  const fauna = Promise.all(['deer', 'stag'].map(k => paso(loader.loadAsync(`assets/animales/${k}.glb`), 'Animales…').catch(e => { datos.errores.push(k + ': ' + e.message); return null; })));
+  const fauna = Promise.all(['deer', 'stag'].map(k => paso(cargarModelo(`assets/animales/${k}`), 'Animales…').catch(e => { datos.errores.push(k + ': ' + e.message); return null; })));
   await Promise.all(capas);
 
   const mat = materialTerreno(T, terr.dataTex, calidad);
