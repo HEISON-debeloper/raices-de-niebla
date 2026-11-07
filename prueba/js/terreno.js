@@ -24,7 +24,9 @@ export function heightFn(x, z) {
   h += 4 * (fbm(x / 55, z / 55, 3) - 0.5) * smooth(30, 200, d);                    // detalle
   const k = 1 + Math.max(0, Math.abs(z) - 430) / 350;   // fuera del mapa el cauce se ensancha (y la malla lejana lo alcanza a ver)
   const c = 1 - smooth(7 * k, 17 * k, d);           // cauce
-  h = h * (1 - c) + (-2.4 + 0.6 * fbm(x / 12, z / 12)) * c;
+  // perfil en U: orilla a −1,5 m y centro a −7 m (se puede bucear); el fondo tiene piedras (ruido)
+  const fondo = -1.5 - 5.5 * Math.pow(1 - smooth(0, 13 * k, d), 0.8) + 0.8 * (fbm(x / 9, z / 9) - 0.5);
+  h = h * (1 - c) + fondo * c;
   return h;
 }
 

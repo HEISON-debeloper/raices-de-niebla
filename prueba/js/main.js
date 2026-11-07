@@ -234,6 +234,8 @@ function frame() {
     cam.updateMatrixWorld(); frustum.setFromProjectionMatrix(pv.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
     for (const s of especies) s.actualizar(cam.position, frustum, CALIDAD[calidad].lod);
     niebla.material.uniforms.uTime.value = t; VIENTO.value = t;
+    niebla.material.uniforms.uAgua.value = controles.st.bajoAgua ? 1 : 0; niebla.material.uniforms.uLuz.value = 0.15 + 0.85 * THREE.MathUtils.smoothstep(cielo.estado.elev, -3, 25);
+    document.body.classList.toggle('nadando', controles.st.nadando && !controles.st.volar);
     composer.render(dt);
     fpsN++; fpsT += dt;
     if (fpsT >= 1) {
@@ -258,4 +260,4 @@ requestAnimationFrame(frame);
 
 // para pruebas automáticas y capturas
 datos.vista = (x, z, lx, ly, lz, hora) => { cam.position.set(x, 0, z); controles.st.y = null; controles.update(0); controles.mirarA(lx, ly, lz); controles.update(0); if (hora != null) { cielo.setHora(hora); actualizarSolAgua(); } };
-datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam; datos.escala = e => { escala = e; aplicarEscala(); }; datos.lejos = () => terrFar; datos.mirarVuelo = (x, y, z, lx, ly, lz) => { ponerModo(true); cam.position.set(x, y, z); controles.mirarA(lx, ly, lz); controles.st.y = y; controles.update(0); };
+datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam; datos.escala = e => { escala = e; aplicarEscala(); }; datos.lejos = () => terrFar; datos.ctl = () => controles; datos.mirarVuelo = (x, y, z, lx, ly, lz) => { ponerModo(true); cam.position.set(x, y, z); controles.mirarA(lx, ly, lz); controles.st.y = y; controles.update(0); };

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 
 export function crearControles(cam, dom, terr, waterY) {
-  const st = { yaw: 0, pitch: -0.05, keys: new Set(), joy: null, look: null, mx: 0, mz: 0, run: false, activo: true, y: null, volar: false, vel: 60, sube: 0 };
+  const st = { yaw: 0, pitch: -0.05, keys: new Set(), joy: null, look: null, mx: 0, mz: 0, run: false, activo: true, y: null, volar: false, vel: 60, sube: 0, nadando: false, bajoAgua: false };
   const e = new THREE.Euler(0, 0, 0, 'YXZ');
   addEventListener('keydown', ev => { st.keys.add(ev.code); if (ev.code.startsWith('Shift')) st.run = true; });
   addEventListener('keyup', ev => { st.keys.delete(ev.code); if (ev.code.startsWith('Shift')) st.run = false; });
@@ -51,13 +51,29 @@ export function crearControles(cam, dom, terr, waterY) {
       cam.position.y = Math.min(1500, Math.max(cam.position.y, Math.max(terr.heightAt(cam.position.x, cam.position.z), waterY) + 1.5));
       st.y = cam.position.y;
     } else {
-      const v = (st.run ? 9 : 4.2) * dt;
-      cam.position.x += (fx * c + fz * s) * v; cam.position.z += (-fx * s + fz * c) * v;
-      const lim = 2300; cam.position.x = Math.max(-lim, Math.min(lim, cam.position.x)); cam.position.z = Math.max(-lim, Math.min(lim, cam.position.z));   // se puede caminar hasta las cumbres
-      const suelo = Math.max(terr.heightAt(cam.position.x, cam.position.z), waterY - 0.9) + 1.65;
-      st.y = st.y == null ? suelo : st.y + (suelo - st.y) * Math.min(1, dt * 10);
-      cam.position.y = st.y;
+      const fondo = terr.heightAt(cam.position.x, cam.position.z);
+      st.nadando = fondo + 1.65 < waterY - 0.15;            // el agua cubre más que la altura de los ojos
+      const lim = 2300;
+      if (st.nadando) {
+        // nadar: se avanza hacia donde se mira (mirar abajo = bucear), ▲/Espacio sube; flota en la superficie
+        const v = (st.run ? 3.2 : 2.2) * dt, cp = Math.cos(st.pitch), sp = Math.sin(st.pitch);
+        let up = st.sube; if (st.keys.has('Space') || st.keys.has('KeyE')) up += 1; if (st.keys.has('KeyQ') || st.keys.has('KeyC')) up -= 1;
+        cam.position.x += (fx * c + fz * s * cp) * v; cam.position.z += (-fx * s + fz * c * cp) * v;
+        const y0 = st.y == null ? waterY + 0.12 : st.y;
+        st.y = y0 + (-fz * sp + up * 0.8) * v + (fz === 0 && up === 0 ? 0.6 * dt : 0);   // quieto, sube despacio a flotar
+        const f2 = terr.heightAt(cam.position.x, cam.position.z);
+        st.y = Math.min(waterY + 0.12, Math.max(f2 + 0.5, st.y));
+        cam.position.y = st.y;
+      } else {
+        const v = (st.run ? 9 : 4.2) * dt;
+        cam.position.x += (fx * c + fz * s) * v; cam.position.z += (-fx * s + fz * c) * v;
+        const suelo = terr.heightAt(cam.position.x, cam.position.z) + 1.65;
+        st.y = st.y == null ? suelo : st.y + (suelo - st.y) * Math.min(1, dt * 10);
+        cam.position.y = st.y;
+      }
+      cam.position.x = Math.max(-lim, Math.min(lim, cam.position.x)); cam.position.z = Math.max(-lim, Math.min(lim, cam.position.z));   // se puede caminar hasta las cumbres
     }
+    st.bajoAgua = cam.position.y < waterY - 0.02;
     e.set(st.pitch, st.yaw, 0); cam.quaternion.setFromEuler(e);
   }
   return { st, update, mirarA(x, y, z) { const d = new THREE.Vector3(x, y, z).sub(cam.position); st.yaw = Math.atan2(-d.x, -d.z); st.pitch = Math.atan2(d.y, Math.hypot(d.x, d.z)); st.y = null; } };

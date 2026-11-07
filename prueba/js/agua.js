@@ -23,7 +23,7 @@ function normalesAgua(n = 256) {
 export function crearAgua() {
   const geo = new THREE.PlaneGeometry(2600, 2600); geo.rotateX(-Math.PI / 2);
   const U = { uTime: { value: 0 }, uNor: { value: normalesAgua() } };
-  const m = new THREE.MeshStandardMaterial({ color: 0x15332d, roughness: 0.14, metalness: 0, envMapIntensity: 0.75 });
+  const m = new THREE.MeshStandardMaterial({ color: 0x15332d, roughness: 0.14, metalness: 0, envMapIntensity: 0.75, side: THREE.DoubleSide });   // también se ve desde abajo al bucear
   m.onBeforeCompile = s => {
     Object.assign(s.uniforms, U);
     s.vertexShader = 'varying vec3 vWPa;\n' + s.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vWPa=(modelMatrix*vec4(transformed,1.)).xyz;');
