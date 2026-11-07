@@ -15,9 +15,8 @@ jobs:
   assets:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    env:
-      RAW: ${{ runner.temp }}/raw
     steps:
+      - run: echo "RAW=$RUNNER_TEMP/raw" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
