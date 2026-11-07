@@ -1,7 +1,49 @@
 {
-  "_nota": "Recursos CC0 que GitHub Actions descarga de Poly Haven (tools/assets.py). Desde la sesión de Claude Poly Haven no es accesible.",
-  "textures": {"res": "2k", "maps": ["Diffuse", "nor_gl", "Rough"],
-    "ids": ["aerial_grass_rock", "forrest_ground_01", "rocky_terrain_02", "rock_face", "brown_mud_leaves_01", "aerial_rocks_02", "coast_sand_rocks_02"]},
-  "hdris": {"res": "2k", "ids": ["kloofendal_48d_partly_cloudy_puresky", "kloppenheim_06_puresky", "qwantani_puresky"]},
-  "models": {"res": "1k", "ids": ["island_tree_01", "island_tree_02", "island_tree_03", "fern_02", "rock_moss_set_01", "rock_moss_set_02", "boulder_01", "shrub_01", "shrub_02", "dry_branches_medium_01", "tree_stump_01", "pine_tree_01", "fir_tree_01", "grass_medium_01", "grass_medium_02"]}
+  "_nota": "Recursos CC0 de Poly Haven. GitHub Actions los descarga (tools/assets.py), los optimiza (tools/optimizar.mjs: modelos simplificados + meshopt + texturas WebP) y guarda solo el resultado en prueba/assets/.",
+  "textures": {
+    "res": "2k",
+    "maps": [
+      "Diffuse",
+      "nor_gl",
+      "Rough"
+    ],
+    "ids": [
+      "aerial_grass_rock",
+      "forrest_ground_01",
+      "rocky_terrain_02",
+      "rock_face",
+      "brown_mud_leaves_01",
+      "aerial_rocks_02",
+      "coast_sand_rocks_02"
+    ]
+  },
+  "models": {
+    "res": "1k",
+    "ids": [
+      "island_tree_01",
+      "island_tree_02",
+      "island_tree_03",
+      "fern_02",
+      "rock_moss_set_01",
+      "rock_moss_set_02",
+      "boulder_01",
+      "shrub_01",
+      "shrub_02",
+      "dry_branches_medium_01",
+      "tree_stump_01",
+      "pine_tree_01",
+      "fir_tree_01",
+      "grass_medium_01",
+      "grass_medium_02"
+    ]
+  },
+  "optimizar": {
+    "maxTris": 60000,
+    "lod1": 0.12,
+    "texModel": 1024,
+    "texModelLod1": 256,
+    "terrDiff": 2048,
+    "terrNor": 2048,
+    "terrRough": 1024
+  }
 }

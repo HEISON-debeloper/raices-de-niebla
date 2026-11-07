@@ -5,7 +5,7 @@ texturas y cielos disponibles (nombre, categorías) para elegir los siguientes."
 import json, os, sys, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, 'prueba', 'assets')
+OUT = os.environ.get('RAW', os.path.join(ROOT, 'prueba', 'assets'))
 UA = {'User-Agent': 'raices-de-niebla-assets/1.0'}
 
 
@@ -32,7 +32,9 @@ def main():
         d = json.loads(get('https://api.polyhaven.com/assets?t=' + t))
         cat[t] = {k: {'name': v.get('name'), 'categories': v.get('categories'), 'tags': v.get('tags', [])[:8]} for k, v in d.items()}
     os.makedirs(OUT, exist_ok=True)
-    json.dump(cat, open(os.path.join(OUT, '_catalogo.json'), 'w'), ensure_ascii=False, indent=0)
+    fin = os.path.join(ROOT, 'prueba', 'assets')
+    os.makedirs(fin, exist_ok=True)
+    json.dump(cat, open(os.path.join(fin, '_catalogo.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
 
     def files(i):
         return json.loads(get('https://api.polyhaven.com/files/' + i))
@@ -48,13 +50,6 @@ def main():
             log.append('textura ' + i)
         except Exception as e:
             log.append('FALLA textura %s: %s' % (i, e))
-    H = cfg['hdris']
-    for i in H['ids']:
-        try:
-            total += save(files(i)['hdri'][H['res']]['hdr']['url'], 'hdri/%s.hdr' % i)
-            log.append('cielo ' + i)
-        except Exception as e:
-            log.append('FALLA cielo %s: %s' % (i, e))
     M = cfg['models']
     for i in M['ids']:
         try:
