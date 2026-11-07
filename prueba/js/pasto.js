@@ -27,9 +27,9 @@ const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 1,
     s.vertexShader = VERT_PARS + s.vertexShader
       .replace('#include <beginnormal_vertex>', VERT_MAIN)
       .replace('#include <begin_vertex>', 'vec3 transformed = gpos;');
-    s.fragmentShader = 'varying float vG; varying float vGc; uniform vec3 uBase, uTip;\n' + s.fragmentShader
+    s.fragmentShader = 'centroid varying float vG; centroid varying float vGc; uniform vec3 uBase, uTip;\n' + s.fragmentShader
       .replace('vec4 diffuseColor = vec4( diffuse, opacity );',
-        'vec3 gc = mix(uBase*mix(.75,1.15,vGc), uTip*mix(.8,1.2,vGc), vG); vec4 diffuseColor = vec4(gc*(.72+.28*vG), 1.);');
+        'float g = clamp(vG,0.,1.), gv = clamp(vGc,0.,1.); vec3 gc = mix(uBase*mix(.75,1.15,gv), uTip*mix(.8,1.2,gv), g); vec4 diffuseColor = vec4(gc*(.72+.28*g), 1.);');
     mate(s);
   };
   m.customProgramCacheKey = () => 'pasto';
@@ -45,7 +45,7 @@ const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 1,
 const VERT_PARS = /* glsl */`
 uniform sampler2D uData; uniform vec4 uTerr; uniform vec3 uCam; uniform float uTime, uR, uSide, uSpacing; uniform vec2 uWind;
 attribute vec4 blade;
-varying float vG; varying float vGc;
+centroid varying float vG; centroid varying float vGc;   // centroid + clamp: con MSAA la GPU extrapolaba vG en briznas de menos de un píxel → puntos brillantes
 float gh(vec2 c){ vec3 q=fract(vec3(c.xyx)*.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
 `;
 
