@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { WATER_Y } from './terreno.js';
 
 /** Normales de agua generadas por código: suma de ondas con frecuencias enteras (se repite sin costuras). */
-function normalesAgua(n = 256) {
+export function normalesAgua(n = 256) {
   const H = new Float32Array(n * n), W = [];
   let s = 7; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 28; i++) { const a = r() * 6.283, f = 1 + Math.floor(r() * 9); W.push([Math.round(Math.cos(a) * f), Math.round(Math.sin(a) * f), r() * 6.283, 1 / (f + 1.5)]); }

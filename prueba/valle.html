@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Prueba Raíces de Niebla</title>
+<style>
+  :root { --fg:#eef2ee; --mut:#b9c4bb; --pan:rgba(14,20,18,.62); --acc:#c9a24a; }
+  html,body { margin:0; height:100%; background:#0d1210; color:var(--fg); font:14px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
+  #app, #app canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #panel { position:fixed; top:max(10px,env(safe-area-inset-top)); left:max(10px,env(safe-area-inset-left)); background:var(--pan); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px; max-width:min(330px,calc(100vw - 20px)); }
+  #panel h1 { font-size:14px; margin:0 0 2px; letter-spacing:.02em; }
+  #fps { color:var(--mut); font-size:12px; font-variant-numeric:tabular-nums; margin-bottom:8px; }
+  .fila { display:flex; align-items:center; gap:8px; margin-top:6px; }
+  .fila label { color:var(--mut); min-width:54px; font-size:12px; }
+  button { font:inherit; font-size:12px; color:var(--fg); background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:8px; padding:5px 10px; cursor:pointer; }
+  button.on { background:var(--acc); color:#1b1606; border-color:var(--acc); font-weight:600; }
+  input[type=range] { flex:1; accent-color:var(--acc); }
+  #ayuda { color:var(--mut); font-size:11px; margin-top:8px; }
+  #cargando { position:fixed; inset:0; display:grid; place-items:center; background:radial-gradient(ellipse at 50% 40%,#2b3a33,#0d1210 70%); transition:opacity .6s; z-index:5; }
+  #cargando.fuera { opacity:0; pointer-events:none; }
+  #cargando .c { width:min(360px,80vw); text-align:center; }
+  #cargando h2 { font-weight:600; font-size:22px; margin:0 0 4px; letter-spacing:.04em; }
+  #cargando p { color:var(--mut); margin:0 0 16px; }
+  .pista { height:6px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; }
+  #barra { height:100%; width:0; background:var(--acc); transition:width .25s; }
+  #joy { position:fixed; width:110px; height:110px; margin:-55px 0 0 -55px; border-radius:50%; border:2px solid rgba(255,255,255,.35); background:rgba(255,255,255,.06); display:none; pointer-events:none; }
+  #joy > div { position:absolute; left:35px; top:35px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.45); }
+  .solo-vuelo { display:none !important; }
+  body.volando .solo-vuelo { display:flex !important; }
+  #alt { color:var(--mut); font-size:12px; margin-top:6px; font-variant-numeric:tabular-nums; }
+  #vuelo-btn { position:fixed; right:max(16px,env(safe-area-inset-right)); bottom:max(24px,env(safe-area-inset-bottom)); flex-direction:column; gap:12px; }
+  #vuelo-btn button { width:60px; height:60px; border-radius:50%; font-size:22px; background:rgba(14,20,18,.55); }
+  @media (max-height:520px) { #ayuda { display:none; } #panel { padding:8px 10px; } .fila { margin-top:4px; } }
+  @media (max-width:600px) { #panel { padding:8px 10px; } #ayuda { display:none; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="panel">
+  <h1>Raíces de Niebla · prueba gráfica</h1>
+  <div id="fps">midiendo…</div>
+  <div class="fila"><label>Calidad</label><button data-q="alta">Alta</button><button data-q="media">Media</button><button data-q="baja">Baja</button></div>
+  <div class="fila"><label>Hora</label><input id="hora" type="range" min="5.6" max="18.4" step="0.05" value="9.2"><span id="hora-v">9:12</span></div>
+  <div class="fila"><label>Modo</label><button data-modo="caminar" class="on">Caminar</button><button data-modo="volar">Volar</button></div>
+  <div class="fila solo-vuelo"><label>Velocidad</label><input id="vel" type="range" min="5" max="250" step="5" value="60"><span id="vel-v">216 km/h</span></div>
+  <div id="alt" class="solo-vuelo"></div>
+  <div id="ayuda">PC: clic para mirar · WASD camina · Shift corre · F vuela (Espacio sube, Q baja)<br>Celular: izquierda camina · derecha mira</div>
+</div>
+<div id="joy"><div></div></div>
+<div id="vuelo-btn" class="solo-vuelo"><button id="subir" aria-label="Subir">▲</button><button id="bajar" aria-label="Bajar">▼</button></div>
+<div id="cargando"><div class="c"><h2>Raíces de Niebla</h2><p id="cargando-txt">Cargando…</p><div class="pista"><div id="barra"></div></div></div></div>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

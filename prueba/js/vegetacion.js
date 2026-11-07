@@ -70,18 +70,18 @@ function crearImposter(renderer, ps) {
 
 export class Especie {
   constructor(nombre, g0, g1, max, opts = {}) {
-    this.nombre = nombre; this.near = opts.near ?? 70; this.mid = opts.mid ?? Infinity; this.far = opts.far ?? 700; this.items = [];
+    this.nombre = nombre; this.max = max; this.near = opts.near ?? 70; this.mid = opts.mid ?? Infinity; this.far = opts.far ?? 700; this.items = [];
     this.grupo = new THREE.Group();
     const P0 = partes(g0, opts.nodo), P1 = g1 ? partes(g1, opts.nodo) : null;
     const mk = (ps, sombra) => ps.map(p => {
-      const im = new THREE.InstancedMesh(p.geo, p.mat, max); im.count = 0; im.frustumCulled = false;
+      const im = new THREE.InstancedMesh(p.geo, p.mat, max); im.count = 0; im.userData.max = max; im.frustumCulled = false;
       im.castShadow = sombra; im.receiveShadow = true; im.userData.m = p.m; this.grupo.add(im); return im;
     });
     this.l0 = mk(P0, true); this.l1 = P1 ? mk(P1, opts.sombraLejos ?? true) : null;
     this.l2 = null;
     if (opts.renderer && g1 && isFinite(this.mid)) {
       const im = crearImposter(opts.renderer, P1), m = new THREE.InstancedMesh(im.geo, im.mat, max);
-      m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.userData.m = new THREE.Matrix4(); this.grupo.add(m); this.l2 = [m];
+      m.count = 0; m.userData.max = max; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.userData.m = new THREE.Matrix4(); this.grupo.add(m); this.l2 = [m];
     }
     this.tris = [P0, P1].map(ps => (ps || []).reduce((n, p) => n + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0));
   }
@@ -92,15 +92,19 @@ export class Especie {
   }
   /** Reparte cada instancia entre detalle cercano y lejano, y descarta lo que está fuera de la vista
    *  (con margen para no perder sombras de lo que está justo detrás). k escala las distancias según la calidad. */
-  actualizar(cam, frustum, k = 1) {
+  actualizar(cam, frustum, k = 1, doblar = null) {
     const tmp = new THREE.Matrix4(), n2 = (this.near * k) ** 2, m2 = (this.mid * k) ** 2, f2 = (this.far * Math.max(k, 0.75)) ** 2, sph = this.sph || (this.sph = new THREE.Sphere());
     let c0 = 0, c1 = 0, c2 = 0;
+    const pb = this.pb || (this.pb = new THREE.Vector3());
     for (const it of this.items) {
-      const d2 = it.p.distanceToSquared(cam);
+      const p = doblar ? doblar(it.p, pb) : it.p;   // tubo: distancia y recorte con la posición ya enrollada
+      const d2 = p.distanceToSquared(cam);
       if (d2 > f2) continue;
-      if (frustum) { sph.center.copy(it.p); sph.center.y += 4; sph.radius = d2 < 900 ? 30 : 12; if (!frustum.intersectsSphere(sph)) continue; }
-      if (this.l2 && d2 > m2) { this.l2[0].setMatrixAt(c2++, it.M); continue; }
-      const lejos = this.l1 && d2 > n2, set = lejos ? this.l1 : this.l0, i = lejos ? c1++ : c0++;
+      if (frustum) { sph.center.copy(p); sph.center.y += 4; sph.radius = d2 < 900 ? 30 : 12; if (!frustum.intersectsSphere(sph)) continue; }
+      if (this.l2 && d2 > m2) { if (c2 < this.max) this.l2[0].setMatrixAt(c2++, it.M); continue; }
+      const lejos = this.l1 && d2 > n2, set = lejos ? this.l1 : this.l0;
+      if ((lejos ? c1 : c0) >= this.max) continue;
+      const i = lejos ? c1++ : c0++;
       for (const im of set) im.setMatrixAt(i, tmp.multiplyMatrices(it.M, im.userData.m));
     }
     if (this.l2) { this.l2[0].count = c2; this.l2[0].instanceMatrix.needsUpdate = true; }

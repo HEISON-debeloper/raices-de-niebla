@@ -2,6 +2,10 @@
 // El valor por defecto (F0 0,04 y Fresnel rasante 1,0) convierte cualquier superficie vista de canto en un espejo del
 // cielo: al amanecer, con el sol de frente, salían puntos claros en el pasto lejano y hojas grisáceas en los árboles.
 import * as THREE from 'three';
+import { curvar } from './tubo/curva.js';
+
+/** curvo: el mundo-tubo enrolla todo al dibujar (tubo/curva.js); el valle antiguo no. */
+export const OPC = { curvo: false };
 
 const CHUNK = THREE.ShaderChunk.lights_physical_fragment
   .replace('material.specularColor = vec3( 0.04 );', 'material.specularColor = vec3( 0.015 );')
@@ -9,6 +13,7 @@ const CHUNK = THREE.ShaderChunk.lights_physical_fragment
 
 /** Aplica el ajuste dentro de un onBeforeCompile (shader = parámetro de onBeforeCompile). */
 export function mate(shader) {
+  if (OPC.curvo) curvar(shader);
   shader.fragmentShader = shader.fragmentShader.replace('#include <lights_physical_fragment>', CHUNK);
 }
 
@@ -18,6 +23,6 @@ export function hacerMate(m) {
   const prev = m.onBeforeCompile && m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile ? m.onBeforeCompile : null;
   m.onBeforeCompile = (s, r) => { if (prev) prev(s, r); mate(s); };
   const key = m.customProgramCacheKey ? m.customProgramCacheKey.bind(m) : () => '';
-  m.customProgramCacheKey = () => key() + '|mate';
+  m.customProgramCacheKey = () => key() + '|mate' + (OPC.curvo ? 'c' : '');
   return m;
 }
