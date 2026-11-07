@@ -104,9 +104,10 @@ window.__escena = datos;
 async function iniciar() {
   progreso(0.02, 'Generando el valle…');
   const T = {};
+  // Diffuse.webp lleva el color en rgb y la rugosidad en alfa (ver tools/optimizar.mjs)
   const capas = Object.entries(TEX).map(([k, id]) => Promise.all([
-    paso(tex(`assets/tex/${id}/Diffuse.webp`, true), 'Texturas del suelo…'), paso(tex(`assets/tex/${id}/nor_gl.webp`)), paso(tex(`assets/tex/${id}/Rough.webp`)),
-  ]).then(([d, n, r]) => { T[k] = { d, n, r }; }));
+    paso(tex(`assets/tex/${id}/Diffuse.webp`, true), 'Texturas del suelo…'), paso(tex(`assets/tex/${id}/nor_gl.webp`)),
+  ]).then(([d, n]) => { T[k] = { d, n }; }));
   const cache = new Map();
   const glb = id => { if (!cache.has(id)) cache.set(id, paso(cargarModelo(`assets/models/${id}`), 'Árboles y rocas…').catch(e => { datos.errores.push(id + ': ' + e.message); return null; })); return cache.get(id); };
   const modelos = ESPECIES.map(e => Promise.all([glb(e.id), glb(e.id + '_lod1')]).then(([a, b]) => ({ e, a, b })));
@@ -214,4 +215,4 @@ requestAnimationFrame(frame);
 
 // para pruebas automáticas y capturas
 datos.vista = (x, z, lx, ly, lz, hora) => { cam.position.set(x, 0, z); controles.st.y = null; controles.update(0); controles.mirarA(lx, ly, lz); controles.update(0); if (hora != null) { cielo.setHora(hora); actualizarSolAgua(); } };
-datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr;
+datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer;

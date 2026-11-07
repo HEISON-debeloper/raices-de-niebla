@@ -34,13 +34,18 @@ for (const id of cfg.models.ids) {
     console.log('modelo', id, JSON.stringify(rep.modelos[id]));
   } catch (e) { console.log('FALLA modelo', id, e.message); rep.modelos[id] = { error: e.message } }
 }
+// Texturas de terreno: Diffuse.webp = color (rgb) + rugosidad (alfa), nor_gl.webp = normales. Con la rugosidad aparte el
+// shader del terreno usaba 19 samplers y en los celulares (límite 16) no compilaba: el suelo no se dibujaba.
 for (const id of cfg.textures.ids) {
   const dir = path.join(RAW, 'tex', id); if (!fs.existsSync(dir)) continue; const o = path.join(OUT, 'tex', id); fs.mkdirSync(o, { recursive: true }); rep.texturas[id] = {};
-  for (const [m, sz, q] of [['Diffuse', O.terrDiff, 82], ['nor_gl', O.terrNor, 90], ['Rough', O.terrRough, 80]]) {
-    const f = path.join(dir, m + '.jpg'); if (!fs.existsSync(f)) continue;
-    const d = path.join(o, m + '.webp'); await sharp(f).resize(sz, sz).webp({ quality: q }).toFile(d);
-    rep.texturas[id][m] = Math.round(fs.statSync(d).size / 1024);
+  const fd = path.join(dir, 'Diffuse.jpg'), fr = path.join(dir, 'Rough.jpg'), fn = path.join(dir, 'nor_gl.jpg'), sz = O.terrDiff;
+  if (fs.existsSync(fd)) {
+    let img = sharp(fd).resize(sz, sz).removeAlpha();
+    if (fs.existsSync(fr)) { const a = await sharp(fr).resize(sz, sz).extractChannel(0).raw().toBuffer(); img = img.joinChannel(a, { raw: { width: sz, height: sz, channels: 1 } }); }
+    const d = path.join(o, 'Diffuse.webp'); await img.webp({ quality: 82, alphaQuality: 55 }).toFile(d); rep.texturas[id].Diffuse = Math.round(fs.statSync(d).size / 1024);
   }
+  if (fs.existsSync(fn)) { const d = path.join(o, 'nor_gl.webp'); await sharp(fn).resize(O.terrNor, O.terrNor).webp({ quality: 90 }).toFile(d); rep.texturas[id].nor_gl = Math.round(fs.statSync(d).size / 1024); }
+  const viejo = path.join(o, 'Rough.webp'); if (fs.existsSync(viejo)) fs.unlinkSync(viejo);
   console.log('textura', id, JSON.stringify(rep.texturas[id]));
 }
 fs.writeFileSync(path.join(OUT, '_informe.json'), JSON.stringify(rep, null, 1));
