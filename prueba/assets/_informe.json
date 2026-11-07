@@ -30,31 +30,31 @@
   },
   "rock_moss_set_01": {
    "trisOriginal": 63127,
-   "tris": 59995,
-   "trisLod1": 7194,
-   "kb": 838,
-   "kbLod1": 106
+   "tris": 14986,
+   "trisLod1": 1216,
+   "kb": 488,
+   "kbLod1": 46
   },
   "rock_moss_set_02": {
    "trisOriginal": 57647,
-   "tris": 57647,
-   "trisLod1": 6908,
-   "kb": 938,
-   "kbLod1": 112
+   "tris": 14992,
+   "trisLod1": 1196,
+   "kb": 616,
+   "kbLod1": 58
   },
   "boulder_01": {
    "trisOriginal": 66122,
-   "tris": 60000,
+   "tris": 54122,
    "trisLod1": 54122,
-   "kb": 1668,
+   "kb": 1593,
    "kbLod1": 910
   },
   "shrub_01": {
    "trisOriginal": 156012,
-   "tris": 59991,
-   "trisLod1": 7194,
-   "kb": 968,
-   "kbLod1": 160
+   "tris": 23997,
+   "trisLod1": 2393,
+   "kb": 629,
+   "kbLod1": 82
   },
   "shrub_02": {
    "trisOriginal": 27254,
@@ -65,17 +65,17 @@
   },
   "dry_branches_medium_01": {
    "trisOriginal": 16803,
-   "tris": 16803,
-   "trisLod1": 2663,
-   "kb": 886,
+   "tris": 8395,
+   "trisLod1": 2659,
+   "kb": 819,
    "kbLod1": 102
   },
   "tree_stump_01": {
    "trisOriginal": 41046,
-   "tris": 41046,
-   "trisLod1": 4920,
-   "kb": 1144,
-   "kbLod1": 108
+   "tris": 9996,
+   "trisLod1": 999,
+   "kb": 901,
+   "kbLod1": 70
   },
   "pine_tree_01": {
    "trisOriginal": 17182252,
@@ -93,10 +93,10 @@
   },
   "grass_medium_01": {
    "trisOriginal": 24730,
-   "tris": 24730,
-   "trisLod1": 2962,
-   "kb": 915,
-   "kbLod1": 150
+   "tris": 7390,
+   "trisLod1": 1101,
+   "kb": 678,
+   "kbLod1": 102
   },
   "grass_medium_02": {
    "trisOriginal": 7842,
