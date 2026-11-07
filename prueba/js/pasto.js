@@ -5,7 +5,7 @@ import { mate } from './materiales.js';
 
 export const PASTO = { alta: { lado: 260, radio: 42 }, media: { lado: 150, radio: 30 }, baja: { lado: 110, radio: 24 } };
 
-export function crearPasto(dataTex, terr) {
+export function crearPasto(dataTex, terr, dataFar, far) {
   // una mata = 4 briznas de 3 tramos; atributo blade = (desplazamiento x, desplazamiento z, giro, escala)
   const pos = [], bl = [], idx = []; const B = [[0, 0, 0, 1], [0.32, 0.18, 2.1, 0.8], [-0.25, 0.3, 4.2, 0.9], [0.1, -0.33, 1.1, 0.7]];
   B.forEach((b, k) => { const o = pos.length / 3; for (let r = 0; r <= 3; r++) for (const sx of [-0.5, 0.5]) { pos.push(sx, r / 3, 0); bl.push(...b); }
@@ -15,7 +15,7 @@ export function crearPasto(dataTex, terr) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(pos.map((_, i) => i % 3 === 1 ? 1 : 0), 3));
   g.instanceCount = 0;
   const U = {
-    uData: { value: dataTex }, uTerr: { value: terr }, uCam: { value: new THREE.Vector3() }, uTime: { value: 0 },
+    uData: { value: dataTex }, uTerr: { value: terr }, uDataFar: { value: dataFar }, uFar: { value: far }, uCam: { value: new THREE.Vector3() }, uTime: { value: 0 },
     uR: { value: 40 }, uSide: { value: 200 }, uSpacing: { value: 0.4 }, uWind: { value: new THREE.Vector2(0.9, 0.35) },
     uBase: { value: new THREE.Color().setRGB(0.045, 0.06, 0.012) }, uTip: { value: new THREE.Color().setRGB(0.115, 0.135, 0.028) },
   };
@@ -43,7 +43,7 @@ const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 1,
 }
 
 const VERT_PARS = /* glsl */`
-uniform sampler2D uData; uniform vec4 uTerr; uniform vec3 uCam; uniform float uTime, uR, uSide, uSpacing; uniform vec2 uWind;
+uniform sampler2D uData, uDataFar; uniform vec4 uTerr, uFar; uniform vec3 uCam; uniform float uTime, uR, uSide, uSpacing; uniform vec2 uWind;
 attribute vec4 blade;
 centroid varying float vG; centroid varying float vGc;   // centroid + clamp: con MSAA la GPU extrapolaba vG en briznas de menos de un píxel → puntos brillantes
 float gh(vec2 c){ vec3 q=fract(vec3(c.xyx)*.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
@@ -54,7 +54,7 @@ float fid = float(gl_InstanceID);
 vec2 cell = floor(uCam.xz/uSpacing) + vec2(mod(fid,uSide), floor(fid/uSide)) - floor(uSide*.5);
 float r1=gh(cell), r2=gh(cell+17.31), r3=gh(cell+41.77), r4=gh(cell+73.13);
 vec2 wp = (cell + vec2(r1,r2))*uSpacing;
-vec4 D = texture2D(uData,(wp-uTerr.xy)/uTerr.z);
+vec4 D = (abs(wp.x) < uTerr.z*.5 && abs(wp.y) < uTerr.z*.5) ? texture2D(uData,(wp-uTerr.xy)/uTerr.z) : texture2D(uDataFar,(wp-uFar.xy)/uFar.z);   // fuera del mapa central: datos lejanos
 float dist = length(wp-uCam.xz);
 float keep = step(r3, D.g) * (1.-smoothstep(uR*.55,uR,dist));
 float hgt = mix(.16,.52,r4*r4) * keep * (.5+.5*D.g) * blade.w;

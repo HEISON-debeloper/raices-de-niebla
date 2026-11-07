@@ -139,8 +139,8 @@ export function bosqueLejano(fuentes, terr, rnd, total, rMin, rMax) {
     if (16 / Math.hypot(dx, 16, dz) < 0.62) continue;
     // pinos arriba; abajo, mezcla de las demás especies
     const alto = fuentes.findIndex(sp => sp.nombre === 'pino');
-    const k = h > 200 && alto >= 0 && rnd() < 0.75 ? alto : Math.floor(rnd() * fuentes.length);
-    listas[k].push([x, h - 1, z]); n++;
+    const k = h > 380 && alto >= 0 && rnd() < 0.75 ? alto : Math.floor(rnd() * fuentes.length);
+    listas[k].push([x, h - 1.5, z]); n++;   // la malla lejana difiere de la altura real ±2 m: se entierra un poco el tronco
   }
   const q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3(), M = new THREE.Matrix4();
   fuentes.forEach((sp, k) => {

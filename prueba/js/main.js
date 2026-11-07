@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { crearTerreno, materialTerreno, riverX, WATER_Y, SIZE } from './terreno.js';
+import { crearTerreno, materialTerreno, riverX, WATER_Y, SIZE, FAR } from './terreno.js';
 import { crearPasto } from './pasto.js';
 import { crearAgua } from './agua.js';
 import { crearCielo } from './cielo.js';
@@ -127,14 +127,14 @@ async function iniciar() {
   terrMesh = new THREE.Mesh(terr.geo, mat); terrMesh.receiveShadow = true; terrMesh.castShadow = true;
   terrFar = new THREE.Mesh(terr.far, mat); terrFar.receiveShadow = true;
   scene.add(terrMesh, terrFar);
-  pasto = crearPasto(terr.dataTex, new THREE.Vector4(-SIZE / 2, -SIZE / 2, SIZE, WATER_Y));
+  pasto = crearPasto(terr.dataTex, new THREE.Vector4(-SIZE / 2, -SIZE / 2, SIZE, WATER_Y), terr.dataFar, new THREE.Vector4(-FAR / 2, -FAR / 2, FAR, 0));
   pasto.calidad(calidad); scene.add(pasto.mesh);
 
   const rnd = rng(1234);
   const reglas = {
     bosque: (x, z, y, n) => n.y > 0.62 && y > WATER_Y + 1.5 && terr.forestAt(x, z) > 0.5,
     borde: (x, z, y, n) => n.y > 0.85 && y > WATER_Y + 1.5 && Math.abs(terr.forestAt(x, z) - 0.35) < 0.25,
-    alto: (x, z, y, n) => n.y > 0.75 && y > 70 && y < 210,
+    alto: (x, z, y, n) => n.y > 0.75 && y > 25 && terr.forestAt(x, z) > 0.3,
     pradera: (x, z, y, n, r) => n.y > 0.9 && y > WATER_Y + 1.2 && terr.forestAt(x, z) < 0.2 && r() < 0.5,
     sotobosque: (x, z, y, n) => n.y > 0.8 && y > WATER_Y + 1.2 && terr.forestAt(x, z) > 0.45,
     roca: (x, z, y, n) => n.y < 0.9 && n.y > 0.6 && y > 6,
@@ -258,4 +258,4 @@ requestAnimationFrame(frame);
 
 // para pruebas automáticas y capturas
 datos.vista = (x, z, lx, ly, lz, hora) => { cam.position.set(x, 0, z); controles.st.y = null; controles.update(0); controles.mirarA(lx, ly, lz); controles.update(0); if (hora != null) { cielo.setHora(hora); actualizarSolAgua(); } };
-datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam; datos.escala = e => { escala = e; aplicarEscala(); }; datos.lejos = () => terrFar;
+datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam; datos.escala = e => { escala = e; aplicarEscala(); }; datos.lejos = () => terrFar; datos.mirarVuelo = (x, y, z, lx, ly, lz) => { ponerModo(true); cam.position.set(x, y, z); controles.mirarA(lx, ly, lz); controles.st.y = y; controles.update(0); };

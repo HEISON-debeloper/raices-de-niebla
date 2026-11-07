@@ -9,25 +9,31 @@ const STEP = SIZE / N;
 /** Centro del río en función de z (serpentea por el fondo del valle). */
 export const riverX = z => 38 * Math.sin(z / 110 + 0.6) + 14 * Math.sin(z / 41 + 1.3);
 
-/** Altura analítica (sirve dentro y fuera del mapa: también para las montañas lejanas). */
+/** Altura analítica (sirve dentro y fuera del mapa: también para las montañas lejanas).
+ *  Diseño medible (tools: pend.mjs): la cordillera sube de forma progresiva desde el río (envolvente d^1,6 hasta
+ *  ~1.000 m a 2,7 km), con ruido suave de longitud de onda larga. Así casi todo se puede subir caminando
+ *  (pendiente p99 < 40°), no hay aristas y la malla lejana coincide con la altura real (los árboles no flotan).
+ *  El valle sigue al río hasta el horizonte: el cauce ya no corta zanjas verticales en las montañas. */
 export function heightFn(x, z) {
   const d = Math.abs(x - riverX(z));
-  let h = 1.2 + 0.035 * d + (fbm(x / 60, z / 60) - 0.5) * 7 * smooth(12, 40, d);
-  const m = Math.pow(smooth(70, 420, d), 1.4);
-  h += m * (40 + 210 * ridge(x / 300 + 3.1, z / 300 - 1.7) + 38 * ridge(x / 85 - 2.3, z / 85 + 4.1)) + 26 * (fbm(x / 45, z / 45) - 0.3) * smooth(60, 220, d);
-  const far = Math.max(Math.abs(x), Math.abs(z));
-  h += smooth(380, 900, far) * 160 * (0.6 + 0.6 * ridge(x / 500, z / 500));
-  const c = 1 - smooth(7, 17, d);           // cauce
+  let h = 1.2 + 0.03 * d + (fbm(x / 60, z / 60) - 0.5) * 6 * smooth(12, 40, d);
+  const t = Math.min(1, Math.max(0, (d - 60) / 2700));
+  const env = 1000 * Math.pow(t, 1.6) * (0.9 + 0.2 * fbm(x / 1100 + 7.3, z / 1100 - 2.9, 3));
+  h += env;
+  h += 18 * (fbm(x / 260 + 1.7, z / 260 + 5.1, 4) - 0.5) * smooth(40, 320, d);     // colinas
+  h += 4 * (fbm(x / 55, z / 55, 3) - 0.5) * smooth(30, 200, d);                    // detalle
+  const k = 1 + Math.max(0, Math.abs(z) - 430) / 350;   // fuera del mapa el cauce se ensancha (y la malla lejana lo alcanza a ver)
+  const c = 1 - smooth(7 * k, 17 * k, d);           // cauce
   h = h * (1 - c) + (-2.4 + 0.6 * fbm(x / 12, z / 12)) * c;
   return h;
 }
 
-/** Máscara de bosque (0–1): manchas en el valle y bosque de niebla en las laderas, hasta el límite de árboles (~300 m). */
+/** Máscara de bosque (0–1): manchas en el valle y bosque de niebla en las laderas, hasta el límite de árboles (~600 m). */
 export function forestFn(x, z, h) {
   const d = Math.abs(x - riverX(z));
   const valle = smooth(0.5, 0.6, fbm(x / 140 + 11, z / 140 - 7, 4)) * smooth(20, 55, d);
   const ladera = smooth(0.38, 0.5, fbm(x / 90 - 5, z / 90 + 3, 4)) * smooth(25, 60, h);   // bosque de niebla en las laderas
-  return Math.max(valle, ladera) * (1 - smooth(270, 320, h));
+  return Math.max(valle, ladera) * (1 - smooth(560, 680, h));   // límite de árboles ~600 m
 }
 
 export function crearTerreno() {
@@ -51,7 +57,7 @@ export function crearTerreno() {
     const x = -SIZE / 2 + i * STEP, z = -SIZE / 2 + j * STEP, h = at(i, j);
     const ny = 2 * STEP / Math.hypot(at(i - 1, j) - at(i + 1, j), 2 * STEP, at(i, j - 1) - at(i, j + 1));
     const f = forestFn(x, z, h);
-    const grass = smooth(0.8, 0.9, ny) * smooth(0.7, 1.6, h - WATER_Y) * (1 - smooth(140, 190, h)) * (1 - 0.65 * f);
+    const grass = smooth(0.8, 0.9, ny) * smooth(0.7, 1.6, h - WATER_Y) * (1 - smooth(640, 720, h)) * (1 - 0.65 * f);
     const k = (j * V + i) * 4; D[k] = h; D[k + 1] = grass; D[k + 2] = f; D[k + 3] = 1;
   }
   const dataTex = new THREE.DataTexture(toHalf(D), V, V, THREE.RGBAFormat, THREE.HalfFloatType);
@@ -72,12 +78,13 @@ export function crearTerreno() {
     q.setXYZ(k, x, inside ? heightFn(x, z) - 40 : heightFn(x, z), z);
   }
   far.computeVertexNormals();
-  // datos de las montañas lejanas (20 m por texel): altura y bosque. Sin esto el shader estiraba el borde del mapa
+  // datos de las montañas lejanas (20 m por texel): altura, pasto y bosque. Sin esto el shader estiraba el borde del mapa
   // y pintaba todas las montañas lejanas de roca y páramo.
   const V2 = FN + 1, D2 = new Float32Array(V2 * V2 * 4), S2 = FAR / FN;
   for (let j = 0; j < V2; j++) for (let i = 0; i < V2; i++) {
     const x = -FAR / 2 + i * S2, z = -FAR / 2 + j * S2, h = heightFn(x, z), k = (j * V2 + i) * 4;
-    D2[k] = h; D2[k + 1] = 0; D2[k + 2] = forestFn(x, z, h); D2[k + 3] = 1;
+    const dx = heightFn(x + 5, z) - heightFn(x - 5, z), dz = heightFn(x, z + 5) - heightFn(x, z - 5), ny = 10 / Math.hypot(dx, 10, dz), f = forestFn(x, z, h);
+    D2[k] = h; D2[k + 1] = smooth(0.8, 0.9, ny) * smooth(0.7, 1.6, h - WATER_Y) * (1 - smooth(640, 720, h)) * (1 - 0.65 * f); D2[k + 2] = f; D2[k + 3] = 1;
   }
   const dataFar = new THREE.DataTexture(toHalf(D2), V2, V2, THREE.RGBAFormat, THREE.HalfFloatType);
   dataFar.magFilter = dataFar.minFilter = THREE.LinearFilter; dataFar.wrapS = dataFar.wrapT = THREE.ClampToEdgeWrapping; dataFar.needsUpdate = true;
@@ -137,10 +144,10 @@ vec3 N = normalize(vWN);
 bool dentro = abs(vWP.x) < uTerr.z*.5 && abs(vWP.z) < uTerr.z*.5;
 vec4 TD = dentro ? texture2D(tData,(vWP.xz-uTerr.xy)/uTerr.z) : texture2D(tDataFar,(vWP.xz-uFar.xy)/uFar.z);
 float h = vWP.y, slope = 1.-N.y, nz = tn1(vWP.xz*.045), nz2 = tn1(vWP.xz*.21);
-float wR = max(smoothstep(.30,.46,slope+(nz-.5)*.12), smoothstep(360.,430.,h+nz*35.)*.85);   // roca: laderas muy empinadas y cumbres
+float wR = max(smoothstep(.30,.46,slope+(nz-.5)*.12), smoothstep(820.,920.,h+nz*50.)*.85);   // roca: laderas muy empinadas y cumbres
 float wB = (1.-smoothstep(uTerr.w+.7,uTerr.w+2.4,h+(nz2-.5)*1.4))*(1.-wR);
 float wF = clamp(TD.b*1.4,0.,1.)*(1.-wR)*(1.-wB);
-float wG0 = max(0.,1.-wR-wB-wF), pa = smoothstep(290.,340.,h+(nz-.5)*40.);   // páramo sobre el límite de árboles
+float wG0 = max(0.,1.-wR-wB-wF), pa = smoothstep(620.,720.,h+(nz-.5)*60.);   // páramo sobre el límite de árboles
 float wG = wG0*(1.-pa), wP = wG0*pa;
 vec4 acc = vec4(0.); vec3 nacc = vec3(0.);
 // cada capa se lee solo donde pesa algo: en la mayoría de los píxeles son 1 o 2 capas (importa en celulares)

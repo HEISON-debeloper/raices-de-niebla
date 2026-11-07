@@ -53,7 +53,7 @@ export function crearControles(cam, dom, terr, waterY) {
     } else {
       const v = (st.run ? 9 : 4.2) * dt;
       cam.position.x += (fx * c + fz * s) * v; cam.position.z += (-fx * s + fz * c) * v;
-      const lim = 420; cam.position.x = Math.max(-lim, Math.min(lim, cam.position.x)); cam.position.z = Math.max(-lim, Math.min(lim, cam.position.z));
+      const lim = 2300; cam.position.x = Math.max(-lim, Math.min(lim, cam.position.x)); cam.position.z = Math.max(-lim, Math.min(lim, cam.position.z));   // se puede caminar hasta las cumbres
       const suelo = Math.max(terr.heightAt(cam.position.x, cam.position.z), waterY - 0.9) + 1.65;
       st.y = st.y == null ? suelo : st.y + (suelo - st.y) * Math.min(1, dt * 10);
       cam.position.y = st.y;
