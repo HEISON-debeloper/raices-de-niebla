@@ -124,3 +124,34 @@ export function sembrar(terr, rnd, n, regla, minDist, area = 430) {
   }
   return out;
 }
+
+/** Bosque lejano: miles de árboles pintados (imposters, 4 triángulos) en las montañas fuera del mapa principal.
+ *  Una llamada de dibujo por especie; sin sombras ni niveles de detalle (a esa distancia la niebla los suaviza). */
+export function bosqueLejano(fuentes, terr, rnd, total, rMin, rMax) {
+  const grupo = new THREE.Group(), listas = fuentes.map(() => []);
+  let n = 0;
+  for (let t = 0; t < total * 40 && n < total; t++) {
+    const x = (rnd() * 2 - 1) * rMax, z = (rnd() * 2 - 1) * rMax;
+    if (Math.max(Math.abs(x), Math.abs(z)) < rMin) continue;
+    const h = terr.heightFn(x, z), f = terr.forestFn(x, z, h);
+    if (f < 0.3 || rnd() > f * f) continue;   // f²: el bosque se concentra en manchas densas en vez de puntos sueltos
+    const dx = terr.heightFn(x + 8, z) - terr.heightFn(x - 8, z), dz = terr.heightFn(x, z + 8) - terr.heightFn(x, z - 8);
+    if (16 / Math.hypot(dx, 16, dz) < 0.62) continue;
+    // pinos arriba; abajo, mezcla de las demás especies
+    const alto = fuentes.findIndex(sp => sp.nombre === 'pino');
+    const k = h > 200 && alto >= 0 && rnd() < 0.75 ? alto : Math.floor(rnd() * fuentes.length);
+    listas[k].push([x, h - 1, z]); n++;
+  }
+  const q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3(), M = new THREE.Matrix4();
+  fuentes.forEach((sp, k) => {
+    const L = listas[k]; if (!L.length) return;
+    const src = sp.l2[0], im = new THREE.InstancedMesh(src.geometry, src.material, L.length);
+    L.forEach((p, i) => {
+      e.set(0, rnd() * Math.PI * 2, 0); q.setFromEuler(e);
+      const sc = (sp.alto[0] + rnd() * (sp.alto[1] - sp.alto[0])) / sp.h0 * 1.35;   // algo más grandes: de lejos se leen como copas agrupadas
+      im.setMatrixAt(i, M.compose(v.set(p[0], p[1], p[2]), q, s.setScalar(sc)));
+    });
+    im.frustumCulled = false; im.castShadow = false; im.receiveShadow = false; grupo.add(im);
+  });
+  return { grupo, n };
+}

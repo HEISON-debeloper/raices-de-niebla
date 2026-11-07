@@ -10,7 +10,7 @@ import { crearPasto } from './pasto.js';
 import { crearAgua } from './agua.js';
 import { crearCielo } from './cielo.js';
 import { PaseNiebla } from './niebla.js';
-import { Especie, sembrar } from './vegetacion.js';
+import { Especie, sembrar, bosqueLejano } from './vegetacion.js';
 import { Manada } from './animales.js';
 import { crearControles } from './controles.js';
 import { rng } from './ruido.js';
@@ -123,7 +123,7 @@ async function iniciar() {
   const fauna = Promise.all(['deer', 'stag'].map(k => paso(cargarModelo(`assets/animales/${k}`), 'Animales…').catch(e => { datos.errores.push(k + ': ' + e.message); return null; })));
   await Promise.all(capas);
 
-  const mat = materialTerreno(T, terr.dataTex, calidad);
+  const mat = materialTerreno(T, terr.dataTex, calidad, terr.dataFar);
   terrMesh = new THREE.Mesh(terr.geo, mat); terrMesh.receiveShadow = true; terrMesh.castShadow = true;
   terrFar = new THREE.Mesh(terr.far, mat); terrFar.receiveShadow = true;
   scene.add(terrMesh, terrFar);
@@ -156,10 +156,15 @@ async function iniciar() {
       const sp = new Especie(a.nombre, g0, g1, a.n, { near: a.near ?? 32, mid: a.mid ?? 160, far: a.far ?? 900, renderer });
       const items = sembrar(terr, rnd, a.n, reglas[a.donde], a.min);
       for (const it of items) it.s = (a.alto[0] + rnd() * (a.alto[1] - a.alto[0])) / h0;
+      sp.alto = a.alto; sp.h0 = h0;
       sp.colocar(items); especies.push(sp); scene.add(sp.grupo);
       datos.cargados.push(`${a.nombre}: ${items.length} (${Math.round(sp.tris[0])} / ${Math.round(sp.tris[1])} triángulos, ${h0.toFixed(1)} u de alto)`);
     } catch (err) { datos.errores.push(a.nombre + ': ' + err.message); }
   }
+  // montañas lejanas (450 m a 2,2 km): bosque de imposters
+  { const t0 = performance.now(), fuentes = especies.filter(sp => sp.l2 && sp.h0 && ['roble', 'fresno', 'aliso', 'pino'].includes(sp.nombre));
+    const bl = bosqueLejano(fuentes, terr, rnd, movil ? 22000 : 32000, SIZE / 2 - 10, 1600); scene.add(bl.grupo);
+    datos.cargados.push(`bosque lejano: ${bl.n} árboles en ${Math.round(performance.now() - t0)} ms`); }
   const [deer, stag] = await fauna;
   manada = new Manada(terr, rnd); scene.add(manada.grupo);
   const z0 = 40, x0 = riverX(z0) + 26, prado = new THREE.Vector3(riverX(-30) + 34, 0, -30);
@@ -234,4 +239,4 @@ requestAnimationFrame(frame);
 
 // para pruebas automáticas y capturas
 datos.vista = (x, z, lx, ly, lz, hora) => { cam.position.set(x, 0, z); controles.st.y = null; controles.update(0); controles.mirarA(lx, ly, lz); controles.update(0); if (hora != null) { cielo.setHora(hora); actualizarSolAgua(); } };
-datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam; datos.escala = e => { escala = e; aplicarEscala(); };
+datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam; datos.escala = e => { escala = e; aplicarEscala(); }; datos.lejos = () => terrFar;

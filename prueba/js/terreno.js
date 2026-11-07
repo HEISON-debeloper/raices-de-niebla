@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { fbm, ridge, smooth } from './ruido.js';
 import { mate } from './materiales.js';
 
-export const SIZE = 900, N = 288, WATER_Y = 0;
+export const SIZE = 900, N = 288, WATER_Y = 0, FAR = 5200, FN = 256;
 const STEP = SIZE / N;
 
 /** Centro del río en función de z (serpentea por el fondo del valle). */
@@ -22,12 +22,12 @@ export function heightFn(x, z) {
   return h;
 }
 
-/** Máscara de bosque (0–1): manchas de bosque fuera del cauce y por debajo de 170 m. */
+/** Máscara de bosque (0–1): manchas en el valle y bosque de niebla en las laderas, hasta el límite de árboles (~300 m). */
 export function forestFn(x, z, h) {
   const d = Math.abs(x - riverX(z));
   const valle = smooth(0.5, 0.6, fbm(x / 140 + 11, z / 140 - 7, 4)) * smooth(20, 55, d);
   const ladera = smooth(0.38, 0.5, fbm(x / 90 - 5, z / 90 + 3, 4)) * smooth(25, 60, h);   // bosque de niebla en las laderas
-  return Math.max(valle, ladera) * (1 - smooth(185, 225, h));
+  return Math.max(valle, ladera) * (1 - smooth(270, 320, h));
 }
 
 export function crearTerreno() {
@@ -62,14 +62,26 @@ export function crearTerreno() {
   for (let k = 0; k < p.count; k++) p.setY(k, heightAt(p.getX(k), p.getZ(k)));
   geo.computeVertexNormals();
   // montañas lejanas: anillo de baja resolución hasta 2,6 km, hundido bajo el mapa principal
-  const far = new THREE.PlaneGeometry(5200, 5200, 260, 260); far.rotateX(-Math.PI / 2);
-  const q = far.attributes.position;
+  // Cuadrícula no uniforme: pocos vértices dentro del mapa (quedan ocultos), muy densos justo afuera (~3 m: el cauce del
+  // río, de ~17 m, ya no se convierte en paredes verticales como pasaba con 20 m) y cada vez más separados (~25 m).
+  const far = new THREE.PlaneGeometry(FAR, FAR, 260, 260); far.rotateX(-Math.PI / 2);
+  const q = far.attributes.position, H0 = SIZE / 2 - 20, HF = FAR / 2;
+  const g = u => { const a = Math.abs(u) / HF, t0 = 0.1; const r = a < t0 ? H0 * a / t0 : H0 + (HF - H0) * Math.pow((a - t0) / (1 - t0), 1.4); return Math.sign(u) * r; };
   for (let k = 0; k < q.count; k++) {
-    const x = q.getX(k), z = q.getZ(k), inside = Math.max(Math.abs(x), Math.abs(z)) < SIZE / 2 - 45;   // la franja del borde conserva su altura: sin costura
-    q.setY(k, inside ? heightFn(x, z) - 40 : heightFn(x, z));
+    const x = g(q.getX(k)), z = g(q.getZ(k)), inside = Math.max(Math.abs(x), Math.abs(z)) < SIZE / 2 - 45;   // la franja del borde conserva su altura
+    q.setXYZ(k, x, inside ? heightFn(x, z) - 40 : heightFn(x, z), z);
   }
   far.computeVertexNormals();
-  return { geo, far, dataTex, heightAt, normalAt, forestAt: (x, z) => forestFn(x, z, heightAt(x, z)) };
+  // datos de las montañas lejanas (20 m por texel): altura y bosque. Sin esto el shader estiraba el borde del mapa
+  // y pintaba todas las montañas lejanas de roca y páramo.
+  const V2 = FN + 1, D2 = new Float32Array(V2 * V2 * 4), S2 = FAR / FN;
+  for (let j = 0; j < V2; j++) for (let i = 0; i < V2; i++) {
+    const x = -FAR / 2 + i * S2, z = -FAR / 2 + j * S2, h = heightFn(x, z), k = (j * V2 + i) * 4;
+    D2[k] = h; D2[k + 1] = 0; D2[k + 2] = forestFn(x, z, h); D2[k + 3] = 1;
+  }
+  const dataFar = new THREE.DataTexture(toHalf(D2), V2, V2, THREE.RGBAFormat, THREE.HalfFloatType);
+  dataFar.magFilter = dataFar.minFilter = THREE.LinearFilter; dataFar.wrapS = dataFar.wrapT = THREE.ClampToEdgeWrapping; dataFar.needsUpdate = true;
+  return { geo, far, dataTex, dataFar, heightAt, normalAt, forestAt: (x, z) => forestFn(x, z, heightAt(x, z)), heightFn, forestFn };
 }
 
 function toHalf(f) { const o = new Uint16Array(f.length); for (let i = 0; i < f.length; i++) o[i] = THREE.DataUtils.toHalfFloat(f[i]); return o; }
@@ -77,7 +89,7 @@ function toHalf(f) { const o = new Uint16Array(f.length); for (let i = 0; i < f.
 /** Material del terreno: 5 capas reales (pradera, suelo de bosque, roca triplanar, orilla, páramo) mezcladas en el shader.
  *  La rugosidad va en el canal alfa de cada textura difusa: así el shader usa 11 samplers (+3 de Three.js) y cabe en el
  *  límite de 16 de los celulares; con texturas de rugosidad aparte eran 19 y en el teléfono el shader no compilaba. */
-export function materialTerreno(tex, dataTex, calidad) {
+export function materialTerreno(tex, dataTex, calidad, dataFar) {
   const m = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 });
   const U = {
     tGd: { value: tex.grass.d }, tGn: { value: tex.grass.n },
@@ -85,7 +97,8 @@ export function materialTerreno(tex, dataTex, calidad) {
     tRd: { value: tex.rock.d }, tRn: { value: tex.rock.n },
     tBd: { value: tex.bank.d }, tBn: { value: tex.bank.n },
     tPd: { value: tex.paramo.d }, tPn: { value: tex.paramo.n },
-    tData: { value: dataTex },
+    tData: { value: dataTex }, tDataFar: { value: dataFar },
+    uFar: { value: new THREE.Vector4(-FAR / 2, -FAR / 2, FAR, 0) },
     uTile: { value: new THREE.Vector4(1 / 6, 1 / 4, 1 / 10, 1 / 4) },
     uTerr: { value: new THREE.Vector4(-SIZE / 2, -SIZE / 2, SIZE, WATER_Y) },
   };
@@ -106,8 +119,8 @@ export function materialTerreno(tex, dataTex, calidad) {
 }
 
 const FRAG_PARS = /* glsl */`
-uniform sampler2D tGd,tGn,tFd,tFn,tRd,tRn,tBd,tBn,tPd,tPn,tData;
-uniform vec4 uTile, uTerr;
+uniform sampler2D tGd,tGn,tFd,tFn,tRd,tRn,tBd,tBn,tPd,tPn,tData,tDataFar;
+uniform vec4 uTile, uTerr, uFar;
 varying vec3 vWP; varying vec3 vWN;
 // hash sin seno: el clásico fract(sin(x)*43758.5) se degrada en las GPU de Apple con argumentos grandes
 float th1(vec2 p){ vec3 q=fract(vec3(p.xyx)*.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
@@ -121,12 +134,13 @@ vec3 nTop(sampler2D t, vec2 uv, vec3 N){ vec3 n=texture2D(t,uv).xyz*2.-1.; retur
 
 const FRAG_MAP = /* glsl */`
 vec3 N = normalize(vWN);
-vec4 TD = texture2D(tData,(vWP.xz-uTerr.xy)/uTerr.z);
+bool dentro = abs(vWP.x) < uTerr.z*.5 && abs(vWP.z) < uTerr.z*.5;
+vec4 TD = dentro ? texture2D(tData,(vWP.xz-uTerr.xy)/uTerr.z) : texture2D(tDataFar,(vWP.xz-uFar.xy)/uFar.z);
 float h = vWP.y, slope = 1.-N.y, nz = tn1(vWP.xz*.045), nz2 = tn1(vWP.xz*.21);
-float wR = max(smoothstep(.26,.40,slope+(nz-.5)*.12), smoothstep(200.,260.,h+nz*35.)*.9);
+float wR = max(smoothstep(.30,.46,slope+(nz-.5)*.12), smoothstep(360.,430.,h+nz*35.)*.85);   // roca: laderas muy empinadas y cumbres
 float wB = (1.-smoothstep(uTerr.w+.7,uTerr.w+2.4,h+(nz2-.5)*1.4))*(1.-wR);
 float wF = clamp(TD.b*1.4,0.,1.)*(1.-wR)*(1.-wB);
-float wG0 = max(0.,1.-wR-wB-wF), pa = smoothstep(170.,215.,h+(nz-.5)*40.);
+float wG0 = max(0.,1.-wR-wB-wF), pa = smoothstep(290.,340.,h+(nz-.5)*40.);   // páramo sobre el límite de árboles
 float wG = wG0*(1.-pa), wP = wG0*pa;
 vec4 acc = vec4(0.); vec3 nacc = vec3(0.);
 // cada capa se lee solo donde pesa algo: en la mayoría de los píxeles son 1 o 2 capas (importa en celulares)
@@ -148,6 +162,9 @@ if (wR > .002) {
   acc += aR*wR; nacc += nR*wR;
 }
 vec3 alb = acc.rgb * mix(.82,1.12,tn1(vWP.xz*.013)) * mix(1.,.86,wF);   // variación de color a gran escala
+// de lejos una ladera boscosa se ve del color de las copas, no del suelo
+float dcam = length(vWP - cameraPosition);
+alb = mix(alb, vec3(.03,.05,.02)*mix(.8,1.25,tn1(vWP.xz*.03)), clamp(TD.b*1.3,0.,1.)*smoothstep(120.,520.,dcam)*.85);
 diffuseColor.rgb *= alb;
 vec3 tNW = normalize(nacc);
 float tRough = clamp(acc.a, .55, 1.);   // nunca por debajo de .55: tierra y hierba no son espejos
