@@ -18,7 +18,9 @@ export function crearPasto(dataTex, terr) {
     uR: { value: 40 }, uSide: { value: 200 }, uSpacing: { value: 0.4 }, uWind: { value: new THREE.Vector2(0.9, 0.35) },
     uBase: { value: new THREE.Color().setRGB(0.045, 0.06, 0.012) }, uTip: { value: new THREE.Color().setRGB(0.115, 0.135, 0.028) },
   };
-  const m = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
+  /* MeshStandard con rugosidad 1: recibe la luz ambiental del cielo igual que el suelo (con Lambert quedaba negro a la sombra) y,
+   al no tener mapa de entorno como espejo, ninguna brizna puede reflejar el disco del sol (un píxel blanco con halo). */
+const m = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 1, metalness: 0, envMapIntensity: 0.9 });
   m.onBeforeCompile = s => {
     Object.assign(s.uniforms, U);
     s.vertexShader = VERT_PARS + s.vertexShader
@@ -42,7 +44,7 @@ const VERT_PARS = /* glsl */`
 uniform sampler2D uData; uniform vec4 uTerr; uniform vec3 uCam; uniform float uTime, uR, uSide, uSpacing; uniform vec2 uWind;
 attribute vec4 blade;
 varying float vG; varying float vGc;
-float gh(vec2 c){ return fract(sin(dot(c,vec2(12.9898,78.233)))*43758.5453); }
+float gh(vec2 c){ vec3 q=fract(vec3(c.xyx)*.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
 `;
 
 const VERT_MAIN = /* glsl */`

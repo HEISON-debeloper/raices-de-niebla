@@ -79,7 +79,7 @@ function montarComposer() {
   composer = new EffectComposer(renderer, rt); composer.setPixelRatio(dpr); composer.setSize(w, h);
   composer.addPass(new RenderPass(scene, cam));
   niebla = niebla || new PaseNiebla(cam); composer.addPass(niebla);
-  if (Q.bloom) { bloom = new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.18, 0.5, 1.4); composer.addPass(bloom); }
+  if (Q.bloom) { bloom = new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.15, 0.5, 2.0); composer.addPass(bloom); }
   composer.addPass(new OutputPass());
   cielo.sol.shadow.mapSize.setScalar(Q.sombra); if (cielo.sol.shadow.map) { cielo.sol.shadow.map.dispose(); cielo.sol.shadow.map = null; }
 }
@@ -215,4 +215,4 @@ requestAnimationFrame(frame);
 
 // para pruebas automáticas y capturas
 datos.vista = (x, z, lx, ly, lz, hora) => { cam.position.set(x, 0, z); controles.st.y = null; controles.update(0); controles.mirarA(lx, ly, lz); controles.update(0); if (hora != null) { cielo.setHora(hora); actualizarSolAgua(); } };
-datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer;
+datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam;

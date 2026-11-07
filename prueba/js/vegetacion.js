@@ -9,7 +9,7 @@ export const VIENTO = { value: 0 };
 
 /** Hojas: material propio con viento que respeta las instancias (el de EZ-Tree reescribe la proyección y las ignora). */
 function materialHojas(src) {
-  const m = new THREE.MeshStandardMaterial({ map: src.map, color: src.color, alphaTest: Math.max(0.4, src.alphaTest || 0.5), side: THREE.DoubleSide, roughness: 0.75, metalness: 0, alphaToCoverage: true });
+  const m = new THREE.MeshStandardMaterial({ map: src.map, color: src.color, alphaTest: Math.max(0.4, src.alphaTest || 0.5), side: THREE.DoubleSide, roughness: 0.9, metalness: 0, alphaToCoverage: true });
   m.onBeforeCompile = s => {
     s.uniforms.uTime = VIENTO;
     s.vertexShader = 'uniform float uTime;\n' + s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -31,7 +31,11 @@ function partes(gltf, nodo) {
   if (nodo) { let hit = null; gltf.scene.traverse(o => { if (!hit && o.name && o.name.startsWith(nodo)) hit = o; }); if (!hit) throw new Error('no existe el nodo ' + nodo); raiz = hit; const w = new THREE.Vector3().setFromMatrixPosition(raiz.matrixWorld); off.makeTranslation(-w.x, 0, -w.z); }
   raiz.traverse(o => {
     if (!o.isMesh) return;
-    const mat = o.material.name === 'leaves' ? materialHojas(o.material) : o.material.clone();
+    const src = o.material;
+    // ramas de EZ-Tree (Phong con el entorno como espejo) → Standard rugoso, como todo lo demás
+    const mat = src.name === 'leaves' ? materialHojas(src) : src.isMeshPhongMaterial
+      ? new THREE.MeshStandardMaterial({ map: src.map, normalMap: src.normalMap, normalScale: src.normalScale, aoMap: src.aoMap, color: src.color, roughness: 0.95, metalness: 0 })
+      : src.clone();
     if (mat.alphaTest > 0 || mat.transparent) { mat.transparent = false; mat.alphaTest = Math.max(mat.alphaTest, 0.42); mat.alphaToCoverage = true; mat.side = THREE.DoubleSide; }
     mat.envMapIntensity = 0.8;
     out.push({ geo: o.geometry, mat, m: off.clone().multiply(o.matrixWorld) });
@@ -52,7 +56,7 @@ function crearImposter(renderer, ps) {
   const prev = renderer.getRenderTarget(), pc = renderer.getClearColor(new THREE.Color()), pa = renderer.getClearAlpha();
   renderer.setRenderTarget(rt); renderer.setClearColor(0x3d4a2a, 0); renderer.clear(); renderer.render(sc, cam);
   renderer.setRenderTarget(prev); renderer.setClearColor(pc, pa);
-  const mat = new THREE.MeshLambertMaterial({ map: rt.texture, alphaTest: 0.45, side: THREE.DoubleSide, alphaToCoverage: true });
+  const mat = new THREE.MeshStandardMaterial({ map: rt.texture, alphaTest: 0.45, side: THREE.DoubleSide, alphaToCoverage: true, roughness: 1, metalness: 0 });
   const a = new THREE.PlaneGeometry(w, h); a.translate(c.x, c.y, 0);
   const b = a.clone(); b.rotateY(Math.PI / 2);
   const geo = mergeGeometries([a, b]);

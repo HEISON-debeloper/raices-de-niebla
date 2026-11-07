@@ -96,6 +96,11 @@ export function materialTerreno(tex, dataTex, calidad) {
     s.fragmentShader = FRAG_PARS + s.fragmentShader
       .replace('#include <map_fragment>', FRAG_MAP)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = tRough;')
+      /* suelo: reflejo especular reducido (F0 0,015 y Fresnel rasante 0,5). Con el valor normal (0,04 y 1,0) el modelo GGX dispara
+         valores enormes en píxeles sueltos cuando sol y mirada son rasantes (amanecer/atardecer): puntos blancos con halo del bloom */
+      .replace('#include <lights_physical_fragment>', THREE.ShaderChunk.lights_physical_fragment
+        .replace('material.specularColor = vec3( 0.04 );', 'material.specularColor = vec3( 0.015 );')
+        .replace('material.specularF90 = 1.0;', 'material.specularF90 = 0.5;'))
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix*vec4(tNW,0.)).xyz);');
   };
   m.customProgramCacheKey = () => 'terreno' + m.defines.TRIPLANAR;
@@ -106,7 +111,8 @@ const FRAG_PARS = /* glsl */`
 uniform sampler2D tGd,tGn,tFd,tFn,tRd,tRn,tBd,tBn,tPd,tPn,tData;
 uniform vec4 uTile, uTerr;
 varying vec3 vWP; varying vec3 vWN;
-float th1(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+// hash sin seno: el clásico fract(sin(x)*43758.5) se degrada en las GPU de Apple con argumentos grandes
+float th1(vec2 p){ vec3 q=fract(vec3(p.xyx)*.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
 float tn1(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(th1(i),th1(i+vec2(1,0)),f.x),mix(th1(i+vec2(0,1)),th1(i+vec2(1,1)),f.x),f.y); }
 // albedo (rgb) y rugosidad (a) sin repetición visible: mezcla dos escalas desfasadas según un ruido
@@ -146,5 +152,5 @@ if (wR > .002) {
 vec3 alb = acc.rgb * mix(.82,1.12,tn1(vWP.xz*.013)) * mix(1.,.86,wF);   // variación de color a gran escala
 diffuseColor.rgb *= alb;
 vec3 tNW = normalize(nacc);
-float tRough = clamp(acc.a, .35, 1.);
+float tRough = clamp(acc.a, .55, 1.);   // nunca por debajo de .55: tierra y hierba no son espejos
 `;
