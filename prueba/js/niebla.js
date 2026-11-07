@@ -24,6 +24,9 @@ export class PaseNiebla extends Pass {
                      mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z); }
         void main(){
           vec3 col = texture2D(tDiffuse,vUv).rgb; float d = texture2D(tDepth,vUv).x; bool sky = d >= .99999;
+          // valores inválidos (NaN o infinito: en GPU de Apple salen como puntos de color) → negro; y tope de brillo
+          if (!(col.r < 1e4 && col.g < 1e4 && col.b < 1e4) || col.r != col.r || col.g != col.g || col.b != col.b) col = vec3(0.);
+          col = min(col, vec3(6.));
           vec4 vp = uInvProj*vec4(vUv*2.-1., d*2.-1., 1.); vp/=vp.w;
           float dist = sky ? 2600. : length(vp.xyz);
           vec3 rd = normalize((uCamWorld*vec4(vp.xyz,0.)).xyz);

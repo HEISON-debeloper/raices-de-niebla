@@ -4,7 +4,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { crearTerreno, materialTerreno, riverX, WATER_Y, SIZE } from './terreno.js';
 import { crearPasto } from './pasto.js';
@@ -45,9 +44,9 @@ function arbol(preset, semilla, lejos) {
 }
 // dpr: resolución máxima; min: hasta dónde puede bajar la resolución dinámica para sostener ~55 FPS
 const CALIDAD = {
-  alta: { dpr: 2, min: 1, msaa: 4, sombra: 2048, bloom: true, lod: 1 },
-  media: { dpr: 1.5, min: 0.8, msaa: 2, sombra: 1536, bloom: false, lod: 0.7 },
-  baja: { dpr: 1, min: 0.6, msaa: 0, sombra: 1024, bloom: false, lod: 0.45 },
+  alta: { dpr: 2, min: 1, msaa: 4, sombra: 2048, lod: 1 },
+  media: { dpr: 1.5, min: 0.8, msaa: 2, sombra: 1536, lod: 0.7 },
+  baja: { dpr: 1, min: 0.6, msaa: 0, sombra: 1024, lod: 0.45 },
 };
 
 const $ = id => document.getElementById(id);
@@ -70,21 +69,26 @@ const agua = crearAgua();
 scene.add(agua.grupo);
 
 // ---------- posproceso ----------
-let composer, niebla, bloom;
-let escala = 0;   // resolución dinámica (multiplica el tamaño en píxeles CSS)
+let composer, niebla;
+// Resolución dinámica SIN parpadeo: el lienzo de la pantalla tiene tamaño fijo y solo cambian los búferes internos
+// donde se dibuja la escena; el último pase (tono y color) los escala al lienzo. Redimensionar el lienzo lo borraba.
+const ESCALONES = [0.6, 0.7, 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
+let escala = 0;
+function rango() { const Q = CALIDAD[calidad], max = Math.min(devicePixelRatio, Q.dpr); return { max, min: Math.min(max, Q.min) }; }
+function tamInterno() { return [Math.max(1, Math.round(innerWidth * escala)), Math.max(1, Math.round(innerHeight * escala))]; }
+function aplicarEscala() { const [w, h] = tamInterno(); composer.renderTarget1.setSize(w, h); composer.renderTarget2.setSize(w, h); }
 function montarComposer() {
-  const Q = CALIDAD[calidad], w = innerWidth, h = innerHeight;
-  const max = Math.min(devicePixelRatio, Q.dpr), min = Math.min(max, Q.min);
+  const Q = CALIDAD[calidad], { max, min } = rango();
   if (!escala || escala > max || escala < min) escala = movil ? Math.max(min, max * 0.8) : max;
-  const dpr = escala;
-  renderer.setPixelRatio(dpr);
-  const rt = new THREE.WebGLRenderTarget(w * dpr, h * dpr, { type: THREE.HalfFloatType, samples: Q.msaa });
-  rt.depthTexture = new THREE.DepthTexture(w * dpr, h * dpr); rt.depthTexture.type = THREE.FloatType;
+  renderer.setPixelRatio(max); renderer.setSize(innerWidth, innerHeight);     // lienzo fijo a la resolución máxima
+  const [w, h] = tamInterno();
+  const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: Q.msaa });
+  rt.depthTexture = new THREE.DepthTexture(w, h); rt.depthTexture.type = THREE.FloatType;
   if (composer) composer.dispose();
-  composer = new EffectComposer(renderer, rt); composer.setPixelRatio(dpr); composer.setSize(w, h);
+  composer = new EffectComposer(renderer, rt);          // sin composer.setSize: los búferes conservan el tamaño interno
   composer.addPass(new RenderPass(scene, cam));
   niebla = niebla || new PaseNiebla(cam); composer.addPass(niebla);
-  if (Q.bloom) { bloom = new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.15, 0.5, 2.0); composer.addPass(bloom); }
+  // sin bloom: agrandaba cualquier píxel suelto muy brillante hasta un círculo amarillo ("bosque encantado")
   composer.addPass(new OutputPass());
   cielo.sol.shadow.mapSize.setScalar(Q.sombra); if (cielo.sol.shadow.map) { cielo.sol.shadow.map.dispose(); cielo.sol.shadow.map = null; }
 }
@@ -196,7 +200,7 @@ agua.calidad(calidad); document.querySelectorAll('[data-q]').forEach(b => b.clas
 addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (composer) montarComposer(); });
 
 // ---------- bucle ----------
-let tPrev = performance.now(), t = 0, fpsN = 0, fpsT = 0;
+let tPrev = performance.now(), t = 0, fpsN = 0, fpsT = 0, ultimoCambio = 0; const fpsHist = [];
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
 function frame() {
   const now = performance.now(), dt = Math.min((now - tPrev) / 1000, 0.1); tPrev = now; t += dt;
@@ -211,13 +215,16 @@ function frame() {
     composer.render(dt);
     fpsN++; fpsT += dt;
     if (fpsT >= 1) {
-      const fps = fpsN / fpsT, Q = CALIDAD[calidad], max = Math.min(devicePixelRatio, Q.dpr), min = Math.min(max, Q.min);
-      // resolución dinámica: el iPhone está limitado por píxeles (1290×2796), no por triángulos
-      if (!datos.fija && t > 4) {
-        let e = escala; if (fps < 48) e = Math.max(min, e * 0.88); else if (fps > 57) e = Math.min(max, e * 1.06);
-        if (Math.abs(e - escala) > 0.02) { escala = e; renderer.setPixelRatio(e); composer.setPixelRatio(e); composer.setSize(innerWidth, innerHeight); }
+      const fps = fpsN / fpsT, { max, min } = rango();
+      // resolución dinámica por escalones, con histéresis y como mucho un cambio cada 3 s
+      fpsHist.push(fps); if (fpsHist.length > 3) fpsHist.shift();
+      if (!datos.fija && t > 4 && t - ultimoCambio > 3 && fpsHist.length === 3) {
+        const prom = fpsHist.reduce((a, b) => a + b) / 3, cand = ESCALONES.filter(e => e >= min - 1e-6 && e <= max + 1e-6);
+        let k = cand.findIndex(e => e >= escala - 1e-6); if (k < 0) k = cand.length - 1;
+        const nk = prom < 46 ? k - 1 : prom > 58 ? k + 1 : k;
+        if (nk !== k && nk >= 0 && nk < cand.length) { escala = cand[nk]; aplicarEscala(); ultimoCambio = t; fpsHist.length = 0; }
       }
-      const i = renderer.info.render; $('fps').textContent = `${Math.round(fps)} FPS · ${Math.round(innerWidth * escala)}×${Math.round(innerHeight * escala)} · ${(i.triangles / 1e6).toFixed(2)} M triángulos`; datos.fps = fpsN / fpsT; datos.calls = i.calls; datos.tris = i.triangles; fpsN = 0; fpsT = 0; }
+      const [iw, ih] = tamInterno(), i = renderer.info.render; $('fps').textContent = `${Math.round(fps)} FPS · ${iw}×${ih} · ${(i.triangles / 1e6).toFixed(2)} M triángulos`; datos.fps = fpsN / fpsT; datos.calls = i.calls; datos.tris = i.triangles; fpsN = 0; fpsT = 0; }
   }
   requestAnimationFrame(frame);
 }
@@ -227,4 +234,4 @@ requestAnimationFrame(frame);
 
 // para pruebas automáticas y capturas
 datos.vista = (x, z, lx, ly, lz, hora) => { cam.position.set(x, 0, z); controles.st.y = null; controles.update(0); controles.mirarA(lx, ly, lz); controles.update(0); if (hora != null) { cielo.setHora(hora); actualizarSolAgua(); } };
-datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam;
+datos.calidad = ponerCalidad; datos.riverX = riverX; datos.terr = terr; datos.renderer = renderer; datos.cam = cam; datos.escala = e => { escala = e; aplicarEscala(); };
