@@ -2,6 +2,15 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.8 · Últimos pendientes de la auditoría
+
+- Árboles talados: cada casilla tiene una clave exacta; antes, talar un árbol podía hacer desaparecer otro a unos 24 km. Las partidas guardadas siguen sirviendo.
+- Las llamas de un incendio se apoyan en el suelo que se ve (antes podían flotar o hundirse).
+- Brillo de luces fuertes: la imagen se reduce en pasos (½, ¼, ⅛) antes de difuminar, así el brillo ya no titila al mover la cámara.
+- Reflejo plano del agua en 16 bits: el cielo y el sol reflejados ya no se queman en blanco.
+- Mapa más nítido en pantallas de alta resolución.
+- Se borró código que ya no se usaba (manos rígidas viejas, ajuste de precisión desactivado, variables y valores sin uso).
+
 ## 0.42.7 · Sonido en celulares
 
 - La música tiene un cupo propio de voces (un tercio, mínimo 2): en perfiles bajos ya no deja sin voces a los pasos, golpes y animales.
