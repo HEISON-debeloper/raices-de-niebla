@@ -2,6 +2,10 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.52.1 · Puma color naranja como la referencia
+
+- Pelaje naranja, pecho y panza crema, patas a juego y cola más larga con la punta oscura.
+
 ## 0.52.0 · Personaje más atlético, como la imagen de referencia
 
 - Torso en V con pectorales y abdominales marcados, brazos con bíceps y deltoides, muslos y pantorrillas más definidos.
