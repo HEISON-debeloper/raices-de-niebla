@@ -124,7 +124,7 @@ async function iniciar() {
     } catch (err) { datos.errores.push(a.id + ': ' + err.message); }
   }
   const lejanas = ['roble', 'fresno', 'aliso', 'pino', 'roble_g', 'pino_g'].filter(k => k in idx).map(k => ({ sp: especies[idx[k]] })).filter(q => q.sp.l2);
-  flora = new Flora(reglasFlora(idx, especies), especies, lejanas, { RN: 500, LZ: 650, nLejos: movil ? 18 : 26 });
+  flora = new Flora(reglasFlora(idx, especies), especies, lejanas, { RN: 500, LZ: 2700, nLejos: movil ? 18 : 26 });
   scene.add(flora.grupo);
 
   // inicio: junto al río grande, mirando aguas abajo

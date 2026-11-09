@@ -46,8 +46,11 @@ const srv = http.createServer((q, r) => { const u = decodeURIComponent(q.url.spl
     await p.waitForTimeout(+arg('esperar') || 4000); const file = `${OUT}/${n}.png`; await p.screenshot({ path: file, timeout: 300000 }); fotos.push(file);
     console.log(n, await p.evaluate(() => document.getElementById('fps').textContent.split('·').slice(2).join('·').trim()));
   }
-  // hoja de contactos (2 columnas) con Python/PIL
-  require('child_process').execFileSync('python3', ['-c', `from PIL import Image\nimport sys\nf=sys.argv[1:]\nims=[Image.open(x) for x in f]\ns=Image.new('RGB',(960,270*((len(ims)+1)//2)))\n[s.paste(im,(480*(i%2),270*(i//2))) for i,im in enumerate(ims)]\ns.save('${OUT}/hoja.png')`, ...fotos]);
+  // hoja de contactos (2 columnas) hecha en el propio navegador: sin depender de Python
+  const datos = fotos.map(f => 'data:image/png;base64,' + fs.readFileSync(f).toString('base64'));
+  const hoja = await b.newPage({ viewport: { width: 960, height: 270 * Math.ceil(datos.length / 2) } });
+  await hoja.setContent(`<body style="margin:0;display:grid;grid-template-columns:480px 480px;background:#000">${datos.map(d => `<img src="${d}" width=480 height=270>`).join('')}</body>`);
+  await hoja.screenshot({ path: `${OUT}/hoja.png`, fullPage: true });
   console.log('hoja', `${OUT}/hoja.png`, errs.length ? '| errores: ' + JSON.stringify(errs.slice(0, 5)) : '| sin errores');
   await b.close(); srv.close();
 })().catch(e => { console.log('FALLO', e.message); process.exit(1); });

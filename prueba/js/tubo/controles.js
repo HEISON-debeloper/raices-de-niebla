@@ -4,7 +4,7 @@
 // acercarse al eje se pesa menos y en el eje se flota; y hay efecto Coriolis: lo que cae o salta se desvía de lado.
 // Coordenadas planas (mundo.js): x arco (sin bordes: da la vuelta), y altura hacia el eje, z a lo largo (infinito).
 import * as THREE from 'three';
-import { R, envolver, ZMIN, ZMAX } from './mundo.js';
+import { R, envolver } from './mundo.js';
 
 const G0 = 9.81, OMEGA = Math.sqrt(G0 / R), ARRASTRE = 0.003, OJOS = 1.65;
 
@@ -94,7 +94,6 @@ export function crearControles(cam, dom, terr) {
       }
     }
     p.x = envolver(p.x);   // una vuelta completa al tubo = mismo lugar
-    p.z = Math.max(ZMIN + 20, Math.min(ZMAX - 20, p.z));   // tramo de pruebas: no se pasa de las tapas
     st.bajoAgua = p.y < st.agua - 0.02;
     e.set(st.pitch, st.yaw, 0); cam.quaternion.setFromEuler(e);
   }

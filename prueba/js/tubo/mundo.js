@@ -13,12 +13,9 @@
 import { fbm3, hash3 } from './ruido3.js';
 
 export const R = 1000, C = 2 * Math.PI * R, WATER_Y = 0, RIOS = 3;
-export const PZ = 16000, ZMAR = 8000, SW = 1500;
-/** Mundo de pruebas: solo un tramo de 1 km a lo largo del eje, cerrado por las tapas del cilindro (muros hasta cerca del eje). */
-export const ZMIN = -500, ZMAX = 500;
-export const tapa = z => 880 * sm(0, 1, (Math.abs(z - (ZMIN + ZMAX) / 2) - (ZMAX - ZMIN) / 2 + 60) / 130);          // mares: periodo a lo largo del eje, centro, semiancho
+export const PZ = 16000, ZMAR = 8000, SW = 1500;          // mares: periodo a lo largo del eje, centro, semiancho
 export const NIEVE = 400, ARBOL_MAX = 320;                 // línea de nieve y límite de árboles (m)
-const LX = C / 6, LZ = 1024, VX = C / 3, VZ = 1000;   // volcanes: una fila de celdas que coincide con el tramo de pruebas        // celdas de lagos y de volcanes
+const LX = C / 6, LZ = 1024, VX = C / 3, VZ = 3000;        // celdas de lagos y de volcanes
 const ANCHO = [45, 16, 7], HONDO = [8, 5.5, 3];            // ríos principales: semiancho base y profundidad
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -58,7 +55,7 @@ export function lago(i, j) {
   if (p < 0.8) {
     const nac = p >= 0.62, cx = (i + 0.15 + 0.7 * hash3(im, j, 502)) * LX, cz = (j + 0.15 + 0.7 * hash3(im, j, 503)) * LZ;
     const rr = rio(cx, cz), hc = hsuave(cx, cz, rr);
-    if (mar(cz).dz > SW + 900 && rr.d > 260 && hc > 80 && Math.abs(cz) < 330) {
+    if (mar(cz).dz > SW + 900 && rr.d > 260 && hc > 80) {
       const dx = envolver(rioU(rr.k, cz) - cx), sgn = dx < 0 ? -1 : 1, rL = nac ? 3 : 30 + 70 * hash3(im, j, 504);
       const nF = Math.floor(hash3(im, j, 509) * 3), Len = Math.abs(dx) - rr.w * 0.5;
       // nivel = el punto más bajo del contorno (aguas abajo y a los lados): el terreno contiene el agua sin presas gigantes
@@ -87,8 +84,8 @@ const cacheVolc = new Map();
 export function volcan(i, j) {
   const key = i + ',' + j; if (cacheVolc.has(key)) return cacheVolc.get(key);
   let V = null; const im = i - 3 * Math.floor(i / 3), p = hash3(im, j, 701);
-  if (p < 1) {
-    const cx = (i + 0.25 + 0.5 * hash3(im, j, 702)) * VX, cz = (j + 0.25 + 0.5 * hash3(im, j, 703)) * VZ - 500, rV = 140 + 160 * hash3(im, j, 704);
+  if (p < 0.45) {
+    const cx = (i + 0.25 + 0.5 * hash3(im, j, 702)) * VX, cz = (j + 0.25 + 0.5 * hash3(im, j, 703)) * VZ, rV = 250 + 450 * hash3(im, j, 704);
     const rr = rio(cx, cz);
     if (mar(cz).dz > SW + rV + 300 && rr.d > rV * 0.5 && !lagoCerca(cx, cz, rV)) V = { cx, cz, rV, HV: rV * (0.18 + 0.12 * hash3(im, j, 705)), rc: rV * 0.18, base: hsuave(cx, cz, rr) };
   }
@@ -150,7 +147,7 @@ export function datos(x, z) {
   }
   if (Wst > h && Wst - h < 2.6) W = Math.max(W, Wst);   // el agua del arroyo solo donde su cauce sigue ahí (un lago u otro corte no la deja colgada)
   // volcanes
-  const vi = Math.floor(x / VX), vj = Math.floor((z + 500) / VZ);
+  const vi = Math.floor(x / VX), vj = Math.floor(z / VZ);
   for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
     const V = volcan(vi + di, vj + dj); if (!V) continue;
     const dl = Math.hypot(envolver(x - V.cx), z - V.cz); if (dl > V.rV) continue;
@@ -162,7 +159,6 @@ export function datos(x, z) {
   // cauce del río principal (al final: corta todo lo demás)
   const w = r.w, c = 1 - sm(w * 0.5, w * 0.5 + Math.max(0.8 * w, 14), d);
   if (c > 0) { const fondo = -1.5 - HONDO[r.k] * (w / ANCHO[r.k]) * Math.pow(1 - sm(0, w * 0.45, d), 0.8) + 0.8 * (f(x, z, 9, 3.1, 1.9, -6.2, 2) - 0.5); h = h * (1 - c) + fondo * c; }
-  h += tapa(z);   // tapas del cilindro: el tramo de pruebas termina en muros
   // máscaras
   const nieve = sm(NIEVE - 25, NIEVE + 25, h + 25 * (f(x, z, 80, 5, 5, 5, 2) - 0.5)) * (1 - vm);
   const hum = f(x, z, 900, -7.7, 1.2, 9.3, 2);
