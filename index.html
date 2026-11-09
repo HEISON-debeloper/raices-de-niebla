@@ -273,8 +273,10 @@ setTimeout(function(){if(!(window.BOOT&&window.BOOT.ms>0)&&!shown){var e=documen
 <script>if(window.THREE&&!THREE.Sky)document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Sky.js"><\/script>')</script>
 <script>if(!window.THREE)window.__loadErr('no se pudo descargar la librería 3D (Three.js). Revisa la conexión a internet')</script>
 <script>
-const VERSION='0.42.9';
+const VERSION='0.42.10';
 const CHANGELOG=[
+['0.42.10','Siempre sobre el suelo',[
+'Estando quieto, el personaje ya no puede quedar flotando o enterrado si algo cambia debajo (una base que se rompe, un traslado): ahora cae o sube al suelo enseguida. Lo encontró el robot que juega partidas rápidas (80 h de juego en 8 partidas).']],
 ['0.42.9','Ajuste automático más inteligente',[
 'Si el celular va lento, el ajuste automático apaga primero el detalle del suelo y luego el posproceso HDR (medido con gráficos al máximo en un Android lento simulado: cada uno pesa cerca de un tercio del cuadro); solo después baja el trazado de rayos y el perfil.',
 'Cuando el celular va sobrado, los devuelve en orden inverso.']],
@@ -2004,7 +2006,7 @@ Lore.step(dt);if(st.work){if(moving||!st.alive){st.work=null;st.msg='Te moviste:
 common(dt,inp);
 if(dm>.05&&!st.fp){const a=Math.atan2(dx,dz);let d=Math.atan2(Math.sin(a-st.face),Math.cos(a-st.face));st.face+=d*Math.min(1,12*dt)}
 {const dpt=World.waterAt(st.x,st.z)-gHere;if(dpt>.3&&st.ground){const cf=World.flow(st.x,st.z);if(cf){const k=Math.min(1,dpt/1.1)*.5;st.x+=cf.x*cf.s*k*dt;st.z+=cf.z*cf.s*k*dt;if(cf.s>1.2&&!(st._curT>0)){st.msg='La corriente te empuja: cuesta avanzar contra ella';st._curT=8}}}st._curT=Math.max(0,(st._curT||0)-dt)}
-slipStep(dt);if(!(st.vx!==0||st.vz!==0||slx!==0||slz!==0||!st.ground)&&!(inp.jump&&st.alive))return;
+slipStep(dt);if(!(st.vx!==0||st.vz!==0||slx!==0||slz!==0||!st.ground)&&!(inp.jump&&st.alive)){/* 0.42.10: quieto también se revisa el suelo: si algo cambió debajo (una base que se rompe, un traslado) ya no queda flotando ni enterrado */if(st.cave||Math.abs(Math.max(World.Hmesh(st.x,st.z),Build.floorAt(st.x,st.z,st.y))-st.y)<.03)return}
 const lim=st.cave?1e7:World.WLIM,ox0=st.x,oz0=st.z;st.x=Math.max(-lim,Math.min(lim,st.x+(st.vx+slx)*dt));st.z=Math.max(-lim,Math.min(lim,st.z+(st.vz+slz)*dt));st._edT=Math.max(0,(st._edT||0)-dt);if(!st.cave&&(Math.abs(st.x)>=lim-.01||Math.abs(st.z)>=lim-.01)&&!(st._edT>0)){st.msg='Llegaste al borde del mundo: aquí termina el mapa (80 km del inicio)';st._edT=8}collide();if(st.cave)caveResolve(ox0,oz0);
 const gh=Math.max(World.Hmesh(st.x,st.z),Build.floorAt(st.x,st.z,st.y));
 if(inp.jump&&st.ground&&st.alive){const m=st.mult,jh=m<=1?.6+(m-.5)/.5*.2:.8+(m-1)/.25*.25;st.vy=Math.sqrt(2*CFG.g*jh);st.ground=false;train('agilidad',1);S.energia=Math.max(0,S.energia-.3)}

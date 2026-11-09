@@ -2,6 +2,10 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.10 · Siempre sobre el suelo
+
+- Estando quieto, el personaje ya no puede quedar flotando o enterrado si algo cambia debajo (una base que se rompe, un traslado): ahora cae o sube al suelo enseguida. Lo encontró el robot que juega partidas rápidas (80 h de juego en 8 partidas).
+
 ## 0.42.9 · Ajuste automático más inteligente
 
 - Si el celular va lento, el ajuste automático apaga primero el detalle del suelo y luego el posproceso HDR (medido con gráficos al máximo en un Android lento simulado: cada uno pesa cerca de un tercio del cuadro); solo después baja el trazado de rayos y el perfil.
