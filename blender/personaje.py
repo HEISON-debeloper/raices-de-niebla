@@ -7,8 +7,8 @@ import bpy, bmesh, json, math, sys
 from mathutils import Vector, Matrix
 OUT = sys.argv[sys.argv.index('--') + 1] if '--' in sys.argv else '/tmp/personaje'
 def srgb(h): return ((h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255)
-P = dict(skin=0xd09a72, skinS=0xb27a55, skinL=0xe2ae86, lip=0xa85c50, hair=0x2b1d14, hairL=0x3d2a1c, brow=0x24170f, white=0xf2ede2,
-         iris=0x5a3d24, pupil=0x120c08, boxer=0x2e5c8a, boxerD=0x234a70, band=0xe4ddd0, boot=0x6b4529, bootD=0x4a2e1a, sole=0x2a1f17,
+P = dict(skin=0xc98c64, skinS=0xa86e4a, skinL=0xdba07a, lip=0xa85c50, hair=0x1c1612, hairL=0x2e2420, brow=0x1e1510, white=0xf2ede2,
+         iris=0x5a3d24, pupil=0x120c08, boxer=0x5c5d61, boxerD=0x46474b, band=0x26262a, boot=0x6b4529, bootD=0x4a2e1a, sole=0x2a1f17,
          lace=0xc9a874, cloth=0xffffff, clothD=0xd8d8d8, pack=0x6a5236, packD=0x4a3824, strap=0x3a2a1a, buckle=0xb8a070, nail=0xe9c4b0)
 
 def orient(m, ctr):
@@ -93,9 +93,13 @@ def torC(x, y, z):
     if z > .09 and abs(x) < .015 and .07 < y < .12: return S['skinS']
     if y > .44 and abs(x) > .13: return S['skinL']
     return S['skin'] if y > .2 or z < .05 else S['skin']
-parts['torso'] = ring_mesh([(.535, .075), (.505, .15), (.465, .205), (.41, .212), (.33, .2), (.25, .178), (.16, .158), (.08, .15), (.0, .146), (-.025, .144)], 10, torC, sz=.64).add(
-    blob(.175, .452, 0, .055, .05, .055, S['skin'], 6, 4)).add(blob(-.175, .452, 0, .055, .05, .055, S['skin'], 6, 4)).add(
-    box(.075, .335, .13, .04, .012, .006, S['skinS'])).add(box(-.075, .335, .13, .04, .012, .006, S['skinS']))
+parts['torso'] = ring_mesh([(.535, .08), (.505, .168), (.465, .226), (.41, .232), (.34, .212), (.26, .18), (.17, .155), (.08, .146), (.0, .146), (-.025, .146)], 10, torC, sz=.64).add(
+    blob(.18, .452, 0, .066, .06, .064, S['skin'], 6, 4)).add(blob(-.18, .452, 0, .066, .06, .064, S['skin'], 6, 4))
+for sx in (1, -1):  # pectorales: placas facetadas con sombra abajo
+    parts['torso'].add(blob(sx * .072, .37, .1, .08, .055, .045, lambda x, y, z: S['skinS'] if y < .345 else S['skinL'] if y > .385 else S['skin'], 6, 3))
+for row in range(3):  # abdominales en 2 columnas, surcos oscuros
+    y = .27 - row * .075
+    for sx in (1, -1): parts['torso'].add(blob(sx * .036, y, .098, .034, .033, .028, lambda x, y_, z: S['skinL'] if y_ > y + .012 else S['skin'], 6, 3))
 # camisa / abrigo (color blanco: el juego la tiñe con el color de la prenda); borde inferior y cuello más oscuros
 def shC(x, y, z): return S['clothD'] if y < -.03 or y > .52 else S['cloth']
 parts['shirt'] = ring_mesh([(.555, .088), (.52, .16), (.47, .222), (.41, .228), (.31, .212), (.2, .19), (.1, .175), (0, .172), (-.07, .174)], 10, shC, sz=.69).add(
@@ -127,7 +131,6 @@ for sx in (1, -1):
     eyes.add(box(sx * .035, .124, .1022, .003, .003, .001, S['white']))  # brillo
 parts['eyes'] = eyes
 # pelo: casquete facetado con mechones en punta sobre la frente y la nuca
-def hairF(x, y, z): return x, y, z
 def hairF(x, y, z):
     # parte de abajo dentada: flequillo en punta delante, recto atrás; nunca baja de la frente
     if y < .15:
@@ -140,14 +143,14 @@ hair = blob(0, .118, -.006, .093, .127, .107, lambda x, y, z: S['hairL'] if y > 
 for sx in (1, -1): hair.add(box(sx * .087, .095, .03, .012, .05, .028, S['hair']))  # patillas
 parts['hair'] = hair
 # brazo (hombro → codo, .315 m), manga
-parts['up'] = ring_mesh([(.03, .032), (.01, .052), (-.02, .058), (-.1, .053), (-.2, .046), (-.28, .04), (-.315, .024)], 8, S['skin'], sz=.92).add(blob(0, -.01, 0, .06, .055, .057, S['skin'], 6, 4))
+parts['up'] = ring_mesh([(.03, .034), (.01, .056), (-.02, .062), (-.1, .06), (-.17, .055), (-.24, .045), (-.29, .04), (-.315, .025)], 8, S['skin'], sz=.92).add(blob(0, -.01, 0, .068, .062, .064, S['skin'], 6, 4)).add(blob(0, -.15, .022, .042, .07, .035, lambda x, y, z: S['skinL'] if y > -.15 else S['skin'], 6, 3))
 parts['sleeve'] = ring_mesh([(.02, .072), (-.04, .072), (-.16, .062), (-.185, .062)], 8, lambda x, y, z: S['clothD'] if y < -.16 else S['cloth'], sz=.95)
 # muslo con pierna del bóxer y rodilla
 def thC(x, y, z):
     if y > -.14: return S['band'] if -.14 < y < -.125 else S['boxer']
     return S['skin']
-parts['thigh'] = ring_mesh([(.045, .062), (.02, .097), (-.06, .095), (-.12, .09), (-.15, .087), (-.26, .075), (-.37, .063), (-.44, .056), (-.465, .04)], 8, thC, sz=.95).add(blob(0, -.43, .045, .026, .024, .014, S['skin'], 6, 4))
-parts['shin'] = ring_mesh([(.02, .047), (0, .055), (-.07, .058), (-.15, .053), (-.25, .044), (-.35, .036), (-.43, .031), (-.455, .026)], 8, S['skin'], sz=.95).add(blob(0, -.13, -.028, .04, .065, .03, S['skin'], 6, 4))
+parts['thigh'] = ring_mesh([(.045, .062), (.02, .099), (-.06, .1), (-.12, .096), (-.15, .093), (-.26, .082), (-.37, .066), (-.44, .056), (-.465, .04)], 8, thC, sz=.95).add(blob(0, -.43, .045, .028, .026, .016, S['skin'], 6, 4)).add(blob(.02, -.3, .055, .05, .1, .035, lambda x, y, z: S['skinL'] if y > -.3 else S['skin'], 6, 3))
+parts['shin'] = ring_mesh([(.02, .048), (0, .056), (-.07, .06), (-.15, .055), (-.25, .044), (-.35, .036), (-.43, .031), (-.455, .026)], 8, S['skin'], sz=.95).add(blob(0, -.13, -.03, .045, .075, .034, S['skin'], 6, 4))
 # pies: descalzo (con dedos en bloque) y con bota (suela, cordones, caña)
 def foot(bare):
     m = M(); c = S['skin'] if bare else S['boot']

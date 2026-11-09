@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.52.0 · Personaje más atlético, como la imagen de referencia
+
+- Torso en V con pectorales y abdominales marcados, brazos con bíceps y deltoides, muslos y pantorrillas más definidos.
+- Bóxer gris con elástico negro, pelo casi negro y piel un poco más bronceada (manos incluidas).
+
 ## 0.51.0 · Telar, prensa, fuelle, puente y huerta hechos en Blender
 
 - Telar con tela tejida a rayas, rodillo de tela enrollada, urdimbre, peine con dientes en el batán, lizos con hilos, lanzadera con punta y banquito con ovillos; las piezas se mueven igual que antes al tejer.
