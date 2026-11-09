@@ -2,6 +2,18 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.5 · Gráficos, multijugador y controles
+
+- Árboles y pasto con distinto balanceo ya no comparten por error el mismo sombreador (algunos se mecían con la amplitud de otro).
+- El reflejo del agua muestra al jugador igual que la cámara.
+- Multijugador: lo que llega del otro jugador se valida (posición, nombre, chat y clima); un dato roto ya no puede congelar el juego ni meter código en la ventana.
+- Escribir en buscadores o en el chat ya no mueve al personaje ni activa atajos.
+- Al cambiar de ventana se sueltan todas las teclas (antes el personaje podía seguir caminando solo).
+- Mando: el gatillo izquierdo ya no queda apuntando al soltar el mando; táctil: apuntar no queda pegado si el dedo se pierde.
+- No llueve dentro de un refugio cerrado.
+- Los animales del corral vuelven a hacer sus sonidos.
+- Atacar cuerpo a cuerpo suena al lanzar el golpe.
+
 ## 0.42.4 · Más fluido en celular
 
 - Luces de antorchas y fogatas con trazado: la prueba de sombra cuesta unas 7 veces menos; en celular se trazan hasta 2 luces (4 en calidad alta).
