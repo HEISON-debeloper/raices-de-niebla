@@ -87,8 +87,7 @@ void datos(vec2 p, out float h, out float W, out float lava, out float nieve, ou
       float fondo=Ws-ds*(1.-smt(0.,ws,lat)), hc=min(h,fondo);
       float cw=1.-smt(ws,ws+2.+1.5*(h-hc),lat);
       h=h*(1.-cw)+hc*cw;
-      float Dm=0.; for(int q=0;q<2;q++){ if(q>=nF) break; Dm+=HF[q]*smt(sF[q]-3.,sF[q],s)*(1.-smt(sF[q]+12.,sF[q]+30.,s)); }
-      float dr=max(0.,Ws+Dm+.35-h), bw=smt(ws*.6,ws*.9,lat)*(1.-smt(ws*1.8,ws*1.8+1.+1.5*dr,lat))*smt(rL*.95,rL+5.,dl);
+      float dr=max(0.,Ws+.35-h), bw=smt(ws*.6,ws*.9,lat)*(1.-smt(ws*1.8,ws*1.8+1.+1.5*dr,lat))*smt(rL*.95,rL+5.,dl);
       h=h*(1.-bw)+(h+dr)*bw;
       if(lat<ws*1.5) Wst=max(Wst,Ws);
     }
@@ -98,13 +97,11 @@ void datos(vec2 p, out float h, out float W, out float lava, out float nieve, ou
     float cx=A.x, cz=A.y, rL=A.z, L=A.w, sgn=B.x, Len=B.y, ws=B.z, ds=B.w, f1=Cc.x, f2=Cc.y; int nF=int(Cc.z); vec2 sF=Dd.xy, HF=Dd.zw;
     float dzp=p.y-cz, dxp=envolver(p.x-cx), dl=length(vec2(dxp,dzp));
     if(dl<rL+120.){
-      float s2=clamp(dxp*sgn,0.,Len), lat2=abs(dzp-25.*sin(s2/90.+f1)-10.*sin(s2/37.+f2));
-      float sal=s2>rL*.5 ? (1.-smt(ws*1.2,ws*2.6+4.,lat2))*smt(rL-2.,rL+2.,dl) : 0.;
-      float bowl=L-1.-9.*(1.-smt(0.,rL,dl)), hb=bowl, wIn=(1.-smt(0.,1.,(dl-rL)/min(110.,2.+2.5*abs(h-hb))))*(1.-sal);
+      float bowl=L-1.-9.*(1.-smt(0.,rL,dl)), hb=bowl, wIn=1.-smt(0.,1.,(dl-rL)/min(110.,2.+2.5*abs(h-hb)));
       h=h*(1.-wIn)+hb*wIn;
-      float dr=max(0.,L+2.5-h), o=rL+max(20.,8.+1.3*dr), wRim=smt(rL,rL+3.+1.3*dr,dl)*(1.-smt(o,o+4.+2.5*dr,dl))*(1.-sal);
+      float dr=max(0.,L+2.5-h), o=rL+max(20.,8.+1.3*dr), wRim=smt(rL,rL+3.+1.3*dr,dl)*(1.-smt(o,o+4.+2.5*dr,dl));
       h=h*(1.-wRim)+(h+dr)*wRim;
-      if(dl<rL+3. && sal<.5) W=max(W,L);
+      if(dl<rL+3.) W=max(W,L);
     }
   }
   if(Wst>h && Wst-h<2.6) W=max(W,Wst);
