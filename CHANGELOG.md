@@ -2,6 +2,12 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.45.0 · Animales nuevos hechos en Blender
+
+- Vaca, mula, venado, puma, cabra, guagua, conejo, cuy, gallina y serpiente rehechos en estilo low-poly: pelaje facetado con lomo claro y vientre en degradado, ojos con brillo y orejas con el interior rosado.
+- Detalles nuevos: astas del venado con puntas, cuernos curvos de la cabra y de la vaca, ubre con pezones, barba de la cabra, crin en sierra de la mula, cola del puma con la punta oscura, cola de algodón del conejo, cresta y cola en abanico de la gallina y lengua roja de la serpiente.
+- Mismas medidas y patas articuladas de antes: el paso, el trote, el galope y el salto se animan igual.
+
 ## 0.44.0 · Árboles y plantas nuevos hechos en Blender
 
 - Árbol del valle: tronco con raíces en contrafuerte, tres ramas y copa redonda de racimos facetados con luz cálida arriba y sombra fría abajo.
