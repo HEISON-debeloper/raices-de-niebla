@@ -91,6 +91,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        web.evaluateJavascript("window.__autoSave&&window.__autoSave()", null);
         web.onPause();
         super.onPause();
     }

@@ -2,6 +2,21 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.1 · No perder la partida
+
+- Si algo falla durante el juego, ya no se congela: sigue andando y muestra el error en un aviso.
+- Se guarda solo al salir de la app, cambiar de app o apagar la pantalla (si ya guardaste o cargaste en esta sesión, o si no había partida).
+- «Guardar partida y recargar» ahora guarda siempre y al volver carga la partida.
+- Al abrir el juego avisa si hay una partida guardada.
+- Botón Atrás del navegador: cierra menús o abre la pausa en vez de salir del juego.
+- Si el celular libera la memoria gráfica, guarda, recarga y continúa la partida.
+- Cargar una partida dañada o con objetos desconocidos ya no rompe el juego.
+- Si el navegador no deja guardar, carga la copia más reciente.
+- En Extremo no se puede cargar estando muerto.
+- Si la carga inicial falla, el mensaje queda visible con un botón Reintentar.
+- Con el menú de pausa abierto dibuja a 15 cuadros/s (gasta menos batería).
+- Se guardan también el jabón, las brasas de la olla y la lluvia del día.
+
 ## 0.42.0 · Más rápido en celulares Android
 
 - Medido antes de cambiar: en un celular de gama baja simulado el cuadro tardaba 223 ms en el preset Bajo; el suelo era el 54 % de ese tiempo y su textura de detalle (hasta 7 lecturas por píxel) un tercio.
