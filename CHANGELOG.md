@@ -2,6 +2,22 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.2 · Sin trampas ni objetos perdidos
+
+- Desmontar ya no devuelve todo el material de objetos baratos (antes daba experiencia de Fabricación infinita): cada material sobrante tiene una probabilidad de recuperarse.
+- Soltar y volver a recoger un objeto conserva su durabilidad, calidad, agua y edad (antes volvía como nuevo).
+- Recoger una pila con la mochila casi llena guarda lo que cabe y deja el resto en el suelo (antes se borraba).
+- Quitarse la mochila sin una casilla libre ya no la hace desaparecer.
+- La prensa comprueba que tienes 6 frutas antes de usarlas; el jugo que no cabe cae al suelo.
+- Corral grande: 6 espacios, así las vacas pueden tener terneros. La mula ya no se reproduce (es estéril).
+- La comida guardada en cajas también se daña con los días y conserva su edad al sacarla.
+- Si un rayo, el desgaste o una roca destruyen una caja, su contenido queda en el suelo.
+- Al reaparecer te bajas de la mula y se reinician las brasas y el jabón.
+- Con más de 60 objetos en el suelo se borra primero una flecha o un objeto quieto, no el último soltado.
+- Lo que no cabe al desarmar, cancelar o fabricar recetas dobles cae al suelo.
+- La experiencia de Fabricación ganada con máquinas, construcción o la lupa también sube de nivel.
+- Fabricar en lote usa el tiempo con fuelle.
+
 ## 0.42.1 · No perder la partida
 
 - Si algo falla durante el juego, ya no se congela: sigue andando y muestra el error en un aviso.
