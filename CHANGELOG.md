@@ -2,6 +2,13 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.47.0 · Herramientas y objetos nuevos hechos en Blender
+
+- Las 18 herramientas rehechas: hachas de piedra, pedernal y hierro con cabeza amarrada y filo claro; lanzas con punta de piedra o de hierro; martillo, cuchillo con mango atado, palo, garrote con clavos, boleadoras, arco con empuñadura de cuero, ballesta, honda, pala, azada, hoz, picos de hierro y de pedernal.
+- Objetos del suelo nuevos: rama con hojitas, piedra facetada, mata de cabuya, hojas grandes, matico, guadua con nudos, arcilla y pluma.
+- Fogata nueva: anillo de piedras, leña cruzada y ceniza.
+- Se ven igual en tercera persona y en la vista en primera persona.
+
 ## 0.46.0 · Construcciones nuevas hechas en Blender
 
 - Nivel 1 (fibra): varas amarradas, paredes de bahareque con varas tejidas y hojas en tejas, techo de hojas en hileras con borde dentado y pilotes de vara.
