@@ -273,8 +273,16 @@ setTimeout(function(){if(!(window.BOOT&&window.BOOT.ms>0)&&!shown){var e=documen
 <script>if(window.THREE&&!THREE.Sky)document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Sky.js"><\/script>')</script>
 <script>if(!window.THREE)window.__loadErr('no se pudo descargar la librería 3D (Three.js). Revisa la conexión a internet')</script>
 <script>
-const VERSION='0.42.2';
+const VERSION='0.42.3';
 const CHANGELOG=[
+['0.42.3','Agua y terreno',[
+'Lagos vecinos de distinto nivel ya no forman paredes de agua de hasta 14 m: entre los dos queda un borde de tierra que sostiene el lago alto (en 5 mundos de prueba, los bordes con caída de más de 1 m bajaron de 832 a 79).',
+'Costa: se quitó un acantilado recto de 2 a 15 m que aparecía donde la orilla se mete tierra adentro.',
+'Las cuevas comprueban que la entrada esté seca en todo su radio.',
+'Si no encuentra un valle para empezar, busca un sitio seco (antes podía dejarte en el agua).',
+'Los tramos de río cortados por un lago junto al mar marcan bien su desembocadura.',
+'Al recorrer mucho, el mundo borra solo los datos más viejos (antes los borraba todos de golpe y daba un tirón).',
+'iPhone: el número de núcleos ya no baja el perfil gráfico (Safari no lo informa bien).']],
 ['0.42.2','Sin trampas ni objetos perdidos',[
 'Desmontar ya no devuelve todo el material de objetos baratos (antes daba experiencia de Fabricación infinita): cada material sobrante tiene una probabilidad de recuperarse.',
 'Soltar y volver a recoger un objeto conserva su durabilidad, calidad, agua y edad (antes volvía como nuevo).',
@@ -963,7 +971,7 @@ function gpuTier(g){g=g.toLowerCase();let m;
  if(/xclipse|immortalis/.test(g))return 3;
  if(/nvidia|geforce|radeon|amd|intel|iris/.test(g))return MOBILE?2:3;
  return MOBILE?1:3}
-function detect(){bench();D.gT=gpuTier(D.gpu);D.cT=D.bench<=35?3:D.bench<=60?2:D.bench<=110?1:0;let t=/apple/i.test(D.gpu)?(D.cT>=1?3:2):Math.min(D.gT,D.cT);if(D.mem&&D.mem<=2)t=0;else if(D.mem&&D.mem<=3)t=Math.min(t,1);if(MOBILE&&D.cores&&D.cores<=4)t=Math.min(t,1);D.tier=t;return t}
+function detect(){bench();D.gT=gpuTier(D.gpu);D.cT=D.bench<=35?3:D.bench<=60?2:D.bench<=110?1:0;let t=/apple/i.test(D.gpu)?(D.cT>=1?3:2):Math.min(D.gT,D.cT);if(D.mem&&D.mem<=2)t=0;else if(D.mem&&D.mem<=3)t=Math.min(t,1);if(MOBILE&&D.cores&&D.cores<=4&&!/apple/i.test(D.gpu))t=Math.min(t,1);D.tier=t;return t}
 detect();
 let p=O.p>=0?O.p:(O.ap!=null?Math.min(O.ap,D.tier):D.tier);
 const boot=p;let P=PR[p];
@@ -1139,7 +1147,7 @@ h+=N(x*.06,z*.06)*1.4+N(x*.21,z*.21)*.3;return h}
 const HYP={SEAL:9,R:19200,C:96,cap:45,acc:30,lakeMin:5,popMin:4,ds:22,eps:2e-4,fb:.7,RI:110,carve:4,dsea:6800,on:true};
 let CO=null,HY=null;
 function cpf(q){return CO.P0+650*N(q*.00042+11,7.7)+230*N(q*.0013-4,3.1)+60*N(q*.0045,1.9)}
-function coastMod(x,z,h){if(!CO)return h;const p=x*CO.ux+z*CO.uz;if(p<CO.P0-3300)return h;const sd=cpf(-x*CO.uz+z*CO.ux)-p;if(sd>2900)return h;
+function coastMod(x,z,h){if(!CO)return h;const p=x*CO.ux+z*CO.uz;if(p<CO.P0-3900)return h;const sd=cpf(-x*CO.uz+z*CO.ux)-p;if(sd>2900)return h;
 const S=HYP.SEAL;let pf;if(sd>=70){const u=sd-70;pf=S+Math.min(u,170)*.024+Math.max(0,u-170)*.0038}else pf=S-62*(1-Math.exp(-(70-sd)/850));
 pf+=N(x*.011+3,z*.011)*.3*sst(-300,120,sd);return h+(pf-h)*sst(2900,450,sd)}
 function coastSd2(x,z){return cpf(-x*CO.uz+z*CO.ux)-(x*CO.ux+z*CO.uz)}
@@ -1189,7 +1197,7 @@ HY={n,N2,C,ox,oz,E,F,to,acc,dest,sea,lk,lakes,LVN,PHI,NEAR,fill,order,on,pits};
 HY.ms1=performance.now()-t0;hyRivers();HY.ms=performance.now()-t0}
 /* --- ríos: tramos entre nodos (fuentes/confluencias), suavizado, meandros, perfil de cota monótono, anchos/profundidades/velocidad/tipo de agua --- */
 function lakePhiAt(x,z){const H=HY,u=(x-H.ox)/H.C-.5,v=(z-H.oz)/H.C-.5,i=Math.floor(u),j=Math.floor(v);if(i<0||j<0||i>=H.n-1||j>=H.n-1)return-8;const k=j*H.n+i,fu=u-i,fv=v-j;
-if(!H.NEAR[k]&&!H.NEAR[k+1]&&!H.NEAR[k+H.n]&&!H.NEAR[k+H.n+1])return-8;const P=H.PHI;return(P[k]*(1-fu)+P[k+1]*fu)*(1-fv)+(P[k+H.n]*(1-fu)+P[k+H.n+1]*fu)*fv}
+if(!H.NEAR[k]&&!H.NEAR[k+1]&&!H.NEAR[k+H.n]&&!H.NEAR[k+H.n+1])return-8;LMK[0]=k;LMK[1]=k+1;LMK[2]=k+H.n;LMK[3]=k+H.n+1;LMW[0]=(1-fu)*(1-fv);LMW[1]=fu*(1-fv);LMW[2]=(1-fu)*fv;LMW[3]=fu*fv;return lakeMix(H,LMK,LMW)[1]}
 function hyRivers(){const H=HY,{n,N2,C,ox,oz,E,F,to,acc,sea,lk}=H,A=HYP.acc,isR=new Uint8Array(N2);
 for(let k=0;k<N2;k++){const x=k%n,y=(k/n)|0;if(!sea[k]&&acc[k]>=A&&lk[k]<0&&x>=3&&y>=3&&x<n-3&&y<n-3&&!(H.NEAR[k]&&E[k]<H.LVN[k]+.3))isR[k]=1}
 const indeg=new Uint8Array(N2);let nR=0;for(let k=0;k<N2;k++)if(isR[k]){nR++;const q=to[k];if(q>=0&&isR[q])indeg[q]++}
@@ -1255,7 +1263,7 @@ let tl=tail;W[mm-1]=Math.max(fw[mm-1],tail,Math.min(ap[mm-1],WU[mm-1]-HYP.carve)
    de segmento) cae dentro de un lago o del mar,
    el agua del río no puede quedar más alta que ese nivel: antes quedaba colgada sobre el fondo del lago, con una pared de agua
    a la vista. Nunca baja de la cota de llegada del tramo (así la unión con el tramo siguiente no queda cuesta arriba). */
-{const wMin=.75*CFG.sector/CFG.fine,lakeLv=(px,pz)=>{/* nivel del lago si el punto cae dentro (phi>0); lo mismo que lakeEval sin calcular el relieve */if(lakePhiAt(px,pz)<=0)return-1e9;const i=Math.floor((px-ox)/C-.5),j=Math.floor((pz-oz)/C-.5),k=j*n+i;return Math.max(H.LVN[k],H.LVN[k+1],H.LVN[k+n],H.LVN[k+n+1])};
+{const wMin=.75*CFG.sector/CFG.fine,lakeLv=(px,pz)=>{/* nivel del lago si el punto cae dentro (phi>0); lo mismo que lakeEval sin calcular el relieve */if(lakePhiAt(px,pz)<=0)return-1e9;const u=(px-ox)/C-.5,v=(pz-oz)/C-.5,i=Math.floor(u),j=Math.floor(v),k=j*n+i,fu=u-i,fv=v-j;LMK[0]=k;LMK[1]=k+1;LMK[2]=k+n;LMK[3]=k+n+1;LMW[0]=(1-fu)*(1-fv);LMW[1]=fu*(1-fv);LMW[2]=(1-fu)*fv;LMW[3]=fu*fv;return lakeMix(H,LMK,LMW)[0]};
  for(let i=0;i<mm;i++)for(let h=0;h<2;h++){if(h&&i===mm-1)continue;/* en el vértice y a mitad del segmento siguiente */
  const x=h?(v.X[i]+v.X[i+1])/2:v.X[i],z=h?(v.Z[i]+v.Z[i+1])/2:v.Z[i];if(lakePhiAt(x,z)<=-8&&!(CO&&coastSd2(x,z)<140))continue;
  const a=h?i:Math.max(0,i-1),b=Math.min(mm-1,i+1);let tx=v.X[b]-v.X[a],tz=v.Z[b]-v.Z[a];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;
@@ -1325,15 +1333,23 @@ for(let ri=0;ri<fin.length;ri++){const r=fin[ri],b=r.base,mm=r.mm;if(mm<3)contin
 const HC=128,idx=new Map(),RIm=HYP.RI+32;let nseg=0;
 for(let a=0;a<nv;a++){const b=G.NEXT[a];if(b<0)continue;nseg++;const w=Math.max(G.WC[a],G.WC[b])+RIm,x0=Math.min(G.X[a],G.X[b])-w,x1=Math.max(G.X[a],G.X[b])+w,z0=Math.min(G.Z[a],G.Z[b])-w,z1=Math.max(G.Z[a],G.Z[b])+w;
 for(let j=Math.floor(z0/HC);j<=Math.floor(z1/HC);j++)for(let i=Math.floor(x0/HC);i<=Math.floor(x1/HC);i++){const key=(i+2048)*8192+(j+2048);let l=idx.get(key);if(!l){l=[];idx.set(key,l)}l.push(a)}}
-H.G=G;H.idx=idx;H.HC=HC;H.nv=nv;H.nseg=nseg;H.nreach=fin.length;H.reaches=fin.map(r=>({base:r.base,mm:r.mm,mouth:r.cutLake?(r.w0&&1):r.mouth,a0:r.a0,dead:!!r.dead,ext:!!r.ext,trim:r.snapped|0,src:indeg[r.cells[0]]===0,c0:r.cells[0],conf:r.end>=0}))}
+H.G=G;H.idx=idx;H.HC=HC;H.nv=nv;H.nseg=nseg;H.nreach=fin.length;H.reaches=fin.map(r=>({base:r.base,mm:r.mm,mouth:r.cutLake?(r.sea?2:1):r.mouth,a0:r.a0,dead:!!r.dead,ext:!!r.ext,trim:r.snapped|0,src:indeg[r.cells[0]]===0,c0:r.cells[0],conf:r.end>=0}))}
 /* --- consultas: suelo (lagos + cauces), agua, máscara, corriente, orillas --- */
 let lkL=-1e9,lkP=-8,lmX=1e18,lmZ=1e18,lmG=0;
+/* 0.42.3: en una celda con esquinas de dos lagos de distinto nivel, cada punto toma el lago en que está más adentro y las esquinas
+   del otro lago cuentan como tierra (phi −8) con el suelo a la altura del lago más alto: queda un borde de tierra entre los dos
+   en vez de una pared de agua (antes el nivel era el máximo de las 4 esquinas y el lago alto se derramaba sobre el bajo). */
+const LMK=[0,0,0,0],LMW=[0,0,0,0],LMR=[0,0,0];
+function lakeMix(H,K,W){let lo=1e9,hi=-1e9;for(let t=0;t<4;t++){const l=H.LVN[K[t]];if(l>-1e8){if(l<lo)lo=l;if(l>hi)hi=l}}
+ if(hi-lo<.01){let p=0,e=0;for(let t=0;t<4;t++){p+=H.PHI[K[t]]*W[t];e+=H.E[K[t]]*W[t]}LMR[0]=hi;LMR[1]=p;LMR[2]=e;return LMR}
+ let e=0;for(let t=0;t<4;t++){const q=K[t],l=H.LVN[q];e+=(l>-1e8&&l<hi-.01?Math.max(H.E[q],hi):H.E[q])*W[t]}
+ let bL=hi,bp=-1e9;for(let c=0;c<4;c++){const L=H.LVN[K[c]];if(L<-1e8)continue;let p=0;for(let t=0;t<4;t++){const l=H.LVN[K[t]];p+=(l<-1e8||Math.abs(l-L)<.01?H.PHI[K[t]]:-8)*W[t]}if(p>bp){bp=p;bL=L}}
+ LMR[0]=bL;LMR[1]=bp;LMR[2]=e;return LMR}
 function lakeEval(x,z,T){/* devuelve suelo ajustado; fija lkL (nivel) y lkP (phi) */
 if(x===lmX&&z===lmZ)return lmG;lmX=x;lmZ=z;lkL=-1e9;lkP=-8;const H=HY,u=(x-H.ox)/H.C-.5,v=(z-H.oz)/H.C-.5,i=Math.floor(u),j=Math.floor(v);
 if(i<0||j<0||i>=H.n-1||j>=H.n-1)return lmG=T;const k=j*H.n+i,k1=k+1,k2=k+H.n,k3=k2+1;
 if(!H.NEAR[k]&&!H.NEAR[k1]&&!H.NEAR[k2]&&!H.NEAR[k3]){/* relleno de charcos pequeños */const f=H.fill;if(f[k]||f[k1]||f[k2]||f[k3]){const fu=u-i,fv=v-j;return lmG=T+(f[k]*(1-fu)+f[k1]*fu)*(1-fv)+(f[k2]*(1-fu)+f[k3]*fu)*fv}return lmG=T}
-const fu=u-i,fv=v-j,w0=(1-fu)*(1-fv),w1=fu*(1-fv),w2=(1-fu)*fv,w3=fu*fv,L=Math.max(H.LVN[k],H.LVN[k1],H.LVN[k2],H.LVN[k3]);
-const phi=H.PHI[k]*w0+H.PHI[k1]*w1+H.PHI[k2]*w2+H.PHI[k3]*w3,Ei=H.E[k]*w0+H.E[k1]*w1+H.E[k2]*w2+H.E[k3]*w3;
+const fu=u-i,fv=v-j,w0=(1-fu)*(1-fv),w1=fu*(1-fv),w2=(1-fu)*fv,w3=fu*fv;LMK[0]=k;LMK[1]=k1;LMK[2]=k2;LMK[3]=k3;LMW[0]=w0;LMW[1]=w1;LMW[2]=w2;LMW[3]=w3;const LR=lakeMix(H,LMK,LMW),L=LR[0],phi=LR[1],Ei=LR[2];
 /* a lo largo del contorno phi=0 el suelo vale exactamente el nivel del lago; el detalle fino se recupera lejos de la orilla */
 const w=sst(0,3.5,Math.abs(phi));let g;if(phi>0){g=Ei+Math.min((T-Ei)*w,.85*phi);g=Math.min(g,L-.03*Math.min(1,phi/.4))}else g=Ei+(T-Ei)*w;
 if(phi>-8){lkL=L;lkP=phi}
@@ -1407,6 +1423,7 @@ const down0=(x,z)=>Math.atan2(H0(x-3,z)-H0(x+3,z),H0(x,z-3)-H0(x,z+3));
 function reachOK(x,z){let b=false,p=false;for(let k=0;k<24&&!(b&&p);k++){const a=k/24*6.283;for(let r=250;r<=900;r+=100){const xx=x+Math.cos(a)*r,zz=z+Math.sin(a)*r,zn=zone(xx,zz,Hbase(xx,zz));if(zn==='Bosque de niebla'&&r>=400&&r<=850)b=true;else if(zn==='Páramo'&&r>=300)p=true}}return b&&p}
 function findSpawn(){const rnd=mulberry(seed^0x2545f491);
 for(let ring=0;ring<=80;ring++){const R=ring*150,n=ring?Math.min(24,4+ring*3):1;for(let k=0;k<n;k++){const a=rnd()*6.283,x=Math.cos(a)*R,z=Math.sin(a)*R;if(zone(x,z,Hbase(x,z))!=='Valle')continue;if(!dry0(x,z,30)||spread0(x,z,16)>3)continue;if(!reachOK(x,z))continue;return{x,z}}}
+for(let ring=0;ring<=60;ring++){const R=ring*100;for(let k=0;k<(ring?16:1);k++){const a=k/16*6.283,x=Math.cos(a)*R,z=Math.sin(a)*R;if(dry0(x,z,8))return{x,z}}}
 return{x:0,z:0}}
 function placesInit(){places=[];byK=new Map();pcell.clear();caveR.clear();siteR.clear();lastReg='';caveCache.clear();const rnd=mulberry(seed^0x51ed270b),sx=spawnPt.x,sz=spawnPt.z;
 function find(cx,cz,r0,r1,zn,R,maxS,avoid,minD,maxSp){let best=null,bs=1e9;for(let t=0;t<2500;t++){const a=rnd()*6.283,r=r0+rnd()*(r1-r0),x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;const y=H0(x,z);if(zone(x,z,y)!==zn)continue;if(avoid.some(q=>Math.hypot(q.x-x,q.z-z)<minD))continue;if(maxSp&&Math.hypot(x-sx,z-sz)>maxSp)continue;if(!dry0(x,z,R))continue;const sp=spread0(x,z,R);if(sp<bs){bs=sp;best={x,z,y}}if(sp<=maxS)return best}return best}
@@ -1419,7 +1436,7 @@ story=L.map(q=>{const p={k:q.k,n:q.n,x:q.pt.x,z:q.pt.z,y:H0(q.pt.x,q.pt.z),rot:q
 const CR=450;
 function caveReg(ci,cj){const key=ci*65536+cj;if(caveR.has(key))return caveR.get(key);let p=null;
 if(hash(ci,cj,931)<.52){for(let t=0;t<12&&!p;t++){const x=(ci+.16+hash(ci,cj,940+t*3)*.68)*CR,z=(cj+.16+hash(ci,cj,941+t*3)*.68)*CR;const y=H0(x,z),zn=zone(x,z,y);if(zn!=='Bosque de niebla'&&zn!=='Páramo')continue;
-if(story.some(q=>Math.hypot(q.x-x,q.z-z)<140)||Math.hypot(x-spawnPt.x,z-spawnPt.z)<120)continue;if(!dry0(x,z,7)||spread0(x,z,7)>3.5)continue;
+if(story.some(q=>Math.hypot(q.x-x,q.z-z)<140)||Math.hypot(x-spawnPt.x,z-spawnPt.z)<120)continue;if(!dry0(x,z,9)||spread0(x,z,7)>3.5)continue;
 p={k:'cueva:'+ci+','+cj,id:ci+','+cj,n:zn==='Páramo'?'Cueva del páramo':'Cueva del bosque',x,z,y,rot:down0(x,z),r:9,fr:7,cave:true,idx:ci*100003+cj}}}
 caveR.set(key,p);if(p){p.cols=placeCols(p);addPlace(p)}return p}
 /* ===== LUGARES PROCEDURALES (0.22.0) =====
@@ -1469,7 +1486,7 @@ else if(a<.82)t=h1<.40*sst(.5,.6,a)*(.55+.9*hm)?'fraile':(a<.58&&h1<.44)?'tree':
 else t=h1<.18?'rock':(a<.9&&h1<.23)?'fraile':null;
 if(t){const s=.75+hash(ci,cj,4)*.6;let fruit=null;if(t==='bush'&&hash(ci,cj,7)<.5)fruit=a<.22?'uchuva':a<.52?'mora':null;
 o={t,x,y:Hmesh(x,z),z,s,ci,cj,rot:hash(ci,cj,5)*6.283,c:.85+hash(ci,cj,6)*.3,r:t==='tree'?.32*s:t==='fraile'?.22*s:t==='rock'?.55*s:0,fruit}}}}}
-if(cache.size>40000)cache.clear();cache.set(key,o);return o}
+if(cache.size>40000){let q=10000;for(const kk of cache.keys()){cache.delete(kk);if(--q<=0)break}}cache.set(key,o);return o}
 let clearHook=null;function objAt(ci,cj){const o=objAt0(ci,cj);if(o&&clearHook&&(o.t==='bush'||o.t==='fraile')&&clearHook(o.x,o.z))return null;if(o&&felled.size&&felled.has(ci*73856093^cj*19349663))return null;if(o&&places.length&&nearPlace(o.x,o.z,1.5))return null;return o}
 const fKey=(i,j)=>i*73856093^j*19349663;
 function fell(ci,cj){felled.set(fKey(ci,cj),[ci,cj])}
@@ -1482,7 +1499,7 @@ else if(a<.52)t=h1<.08?'rama':h1<.1?'piedra':h1<.13?'fibra':h1<.18?'hoja':h1<.19
 else if(a<.82)t=h1<.02?'rama':h1<.08?'piedra':h1<.15?'fibra':null;
 else t=h1<.12?'piedra':h1<.14?'fibra':null;
 if(!t&&a<.52&&h1>=.2)t=h1<.208?'arcilla':h1<.222?'pluma':null;if(t)o={t,x,y:Hmesh(x,z),z,ci,cj,key:'i'+ci+','+cj,rot:hash(ci,cj,24)*6.283}}}}
-if(o&&places.length&&nearPlace(o.x,o.z,0))o=null;if(icache.size>40000)icache.clear();icache.set(key,o);return o}
+if(o&&places.length&&nearPlace(o.x,o.z,0))o=null;if(icache.size>40000){let q=10000;for(const kk of icache.keys()){icache.delete(kk);if(--q<=0)break}}icache.set(key,o);return o}
 return{siteLayout,siteReg,init,H,Hmesh,Hgrad,G,waterAt,riverMask,flow,caveData,caveCell,CY:CAVE_Y,CC,objAt,setClear:f=>{clearHook=f},fell,getFelled,setFelled,setFlood:v=>{flood=v;rvX=1e18},lakePhi:(x,z)=>HY&&x<CAVE_X?lakePhiAt(x,z):-8,rType:(x,z)=>{if(!HY||!HY.G||x>=CAVE_X)return null;riverMask(x,z);if(rvA<0||rvM<.3)return null;const T=HY.G.TY,k=rvA*4;return[T[k],T[k+1],T[k+2],T[k+3]]},get flood(){return flood},itemAt,hash,N:(x,z)=>N(x,z),frac,bandNoise,zone,msnm,get seed(){return seed},get peak(){return spawnPt},get lakes(){return HY?HY.lakes:[]},get places(){return places},get spawn(){return spawnPt},get placesVer(){return placesVer},get lakeVer(){return lakeVer},CAVE_X,WLIM,lakeInfo,shore,hyRebuild:p=>{Object.assign(HYP,p||{});HY=null;lmX=rvX=1e18;hyBuild();return HY},lakesNear,shoreOf,riverSegs,seaAt,springAt:(x,z)=>{if(!HY||!HY.spG)return null;const L=HY.spG.get(Math.floor(x/64)+','+Math.floor(z/64));if(!L)return null;for(const o of L){if(Math.hypot(x-o.x,z-o.z)<=o.R+1.5)return o}return null},get springs(){return HY&&HY.springs||[]},Hb:Hbase,coastSd:(x,z)=>CO?coastSd2(x,z):1e9,get hy(){return HY},HYP,get coast(){return CO},ensureAround,nearestCave,placeBy,slotFor,peakNear,H0,get slots(){return slotIds.slice()},setSlots:a=>{slotIds=(a||[]).slice();caveCache.clear()},toW,inCabin}})();
 
 const Input=(()=>{

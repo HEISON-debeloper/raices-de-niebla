@@ -2,6 +2,16 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.3 · Agua y terreno
+
+- Lagos vecinos de distinto nivel ya no forman paredes de agua de hasta 14 m: entre los dos queda un borde de tierra que sostiene el lago alto (en 5 mundos de prueba, los bordes con caída de más de 1 m bajaron de 832 a 79).
+- Costa: se quitó un acantilado recto de 2 a 15 m que aparecía donde la orilla se mete tierra adentro.
+- Las cuevas comprueban que la entrada esté seca en todo su radio.
+- Si no encuentra un valle para empezar, busca un sitio seco (antes podía dejarte en el agua).
+- Los tramos de río cortados por un lago junto al mar marcan bien su desembocadura.
+- Al recorrer mucho, el mundo borra solo los datos más viejos (antes los borraba todos de golpe y daba un tirón).
+- iPhone: el número de núcleos ya no baja el perfil gráfico (Safari no lo informa bien).
+
 ## 0.42.2 · Sin trampas ni objetos perdidos
 
 - Desmontar ya no devuelve todo el material de objetos baratos (antes daba experiencia de Fabricación infinita): cada material sobrante tiene una probabilidad de recuperarse.
