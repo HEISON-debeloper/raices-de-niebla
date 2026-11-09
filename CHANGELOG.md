@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.7 · Sonido en celulares
+
+- La música tiene un cupo propio de voces (un tercio, mínimo 2): en perfiles bajos ya no deja sin voces a los pasos, golpes y animales.
+- Mochila y cajas: las casillas se pueden recorrer con Tab y usar con Enter o Espacio, y los lectores de pantalla dicen el objeto y la cantidad.
+
 ## 0.42.6 · Animales, construcción y conexión
 
 - Los animales salvajes ya no atraviesan paredes, puertas, muebles ni las cercas de los corrales.
