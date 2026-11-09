@@ -2,6 +2,15 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.46.0 · Construcciones nuevas hechas en Blender
+
+- Nivel 1 (fibra): varas amarradas, paredes de bahareque con varas tejidas y hojas en tejas, techo de hojas en hileras con borde dentado y pilotes de vara.
+- Nivel 2 (madera): piso de tablas con clavos sobre vigas, pared de troncos con los cortes claros en las esquinas, techo de tejamanil en hileras solapadas.
+- Nivel 3 (piedra): losas irregulares, mampostería de piedras de distinto tamaño con argamasa, techo de lajas de pizarra y pilotes de piedra apilada.
+- Puerta de tablas con travesaños en Z y aldaba; escaleras con peldaños, zancas y pasamanos; refugio inclinado con hojas en tejas.
+- Muebles nuevos: cama con colchón, manta y almohada; cama de hojas; caja con cerradura; mesa de tablas; estante con frascos y vasijas; horno de barro; chimenea con brasas; colector con agua; tendedero con ropa y poste.
+- Mismas medidas de antes (casilla de 3 m, pared de 2,4 m): las construcciones guardadas encajan igual. Adobe, ladrillo, paja, teja y las máquinas siguen como estaban.
+
 ## 0.45.0 · Animales nuevos hechos en Blender
 
 - Vaca, mula, venado, puma, cabra, guagua, conejo, cuy, gallina y serpiente rehechos en estilo low-poly: pelaje facetado con lomo claro y vientre en degradado, ojos con brillo y orejas con el interior rosado.
