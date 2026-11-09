@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.50.0 · Pasto y helechos nuevos hechos en Blender
+
+- Matas de pasto con 10 a 12 hojas finas y curvas de tres tramos, oscuras abajo y claras en la punta, algunas con espiga; siguen tomando el color del suelo de cada zona.
+- Helechos con frondas de folíolos alternos, más oscuros en el centro y claros hacia la punta, con la punta enroscada.
+
 ## 0.49.0 · Corrales, máquinas y acabados nuevos hechos en Blender
 
 - Corral y corral grande: postes con dos travesaños, portón abierto, pacas de heno; el grande con establo de techo de hojas en hileras y abrevadero.
