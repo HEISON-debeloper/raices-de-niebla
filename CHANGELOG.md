@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.9 · Ajuste automático más inteligente
+
+- Si el celular va lento, el ajuste automático apaga primero el detalle del suelo y luego el posproceso HDR (medido con gráficos al máximo en un Android lento simulado: cada uno pesa cerca de un tercio del cuadro); solo después baja el trazado de rayos y el perfil.
+- Cuando el celular va sobrado, los devuelve en orden inverso.
+
 ## 0.42.8 · Últimos pendientes de la auditoría
 
 - Árboles talados: cada casilla tiene una clave exacta; antes, talar un árbol podía hacer desaparecer otro a unos 24 km. Las partidas guardadas siguen sirviendo.

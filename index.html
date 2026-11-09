@@ -273,8 +273,11 @@ setTimeout(function(){if(!(window.BOOT&&window.BOOT.ms>0)&&!shown){var e=documen
 <script>if(window.THREE&&!THREE.Sky)document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Sky.js"><\/script>')</script>
 <script>if(!window.THREE)window.__loadErr('no se pudo descargar la librería 3D (Three.js). Revisa la conexión a internet')</script>
 <script>
-const VERSION='0.42.8';
+const VERSION='0.42.9';
 const CHANGELOG=[
+['0.42.9','Ajuste automático más inteligente',[
+'Si el celular va lento, el ajuste automático apaga primero el detalle del suelo y luego el posproceso HDR (medido con gráficos al máximo en un Android lento simulado: cada uno pesa cerca de un tercio del cuadro); solo después baja el trazado de rayos y el perfil.',
+'Cuando el celular va sobrado, los devuelve en orden inverso.']],
 ['0.42.8','Últimos pendientes de la auditoría',[
 'Árboles talados: cada casilla tiene una clave exacta; antes, talar un árbol podía hacer desaparecer otro a unos 24 km. Las partidas guardadas siguen sirviendo.',
 'Las llamas de un incendio se apoyan en el suelo que se ve (antes podían flotar o hundirse).',
@@ -1024,7 +1027,7 @@ function apply(){P=PR[p];try{
  const RT=Render.RT;if(P.rt===0){if(RT.q!==0)RT.setQ(0,false)}else{const want=RT.pref.off?0:Math.min(RT.userQ||2,P.rt);if(RT.q!==want)RT.setQ(want,false)}
  const ip=imgPref(),PS=Render.PP.st;PS.on=!!P.pp&&ip.h!==false;PS.ao=!!P.pp&&ip.o!==false;PS.bloom=!!P.pp&&ip.b!==false;
  Render.setShadows(!!P.shadow,P.shEvery||1);
- if(window.TXU)window.TXU.uTexK.value.w=p<=1?1:0;/* 0.42.0: suelo ligero en Ultra bajo y Bajo */
+ if(window.TXU)window.TXU.uTexK.value.w=p<=1?1:0;/* 0.42.0: suelo ligero en Ultra bajo y Bajo */if(window.AQX){AQX.tex=0;AQX.pp=0}
  Under.G.on=!!P.grass;Under.G.fern=!!P.fern;if(P.gR)Under.setR(Math.min(P.gR,28));
  Cull.restore()}catch(e){console.warn('perf apply',e)}}
 function set(n,fromAuto){n=Math.max(0,Math.min(3,n));if(fromAuto){O.ap=n}else{O.p=n;O.ap=null}p=n;saveO();apply();return NAMES[n]}
@@ -6954,6 +6957,11 @@ const AQ={up:8,tUp:-1e9,tDown:-1e9,sec:0,log:[],hold:0,px:0,pz:0};/* 0.38.4: hol
 let lastF=0,acc=0,last=performance.now(),prev=Logic.snap(),cur=Logic.snap(),fr=0,ft=0,fps=60,lowS=0,highS=0,sinceChange=99,changes=0,hudT=0,deadShown=false,lastActs='';
 function hud(){if(PERF.meterOn()&&!ovOpen){const ci=Cull.st,inf=Render.info(),PS=Render.PP.st;PERF.meter(fps,'FPS '+fps+(PERF.capOn()?'/'+PERF.fpsCap():'')+' · '+PERF.NAMES[PERF.p]+(PERF.auto()?' (auto)':'')+' · res '+Math.round(CFG.levels[Render.level]*100)+' % · luz '+Render.RT.qName+' · HDR '+(PS.on&&PS.ok?'sí':'no')+' · sombras '+(Render.shadowsOn()?'sí':'no')+' · recorte '+(ci.on?ci.ms.toFixed(1)+' ms':'no')+' · '+inf.calls+' llam. · '+Math.round(inf.triangles/1000)+' mil tri')}else PERF.meter(fps,'');drawBars();drawQuick();if(ovOpen===MAQ)updMaq();if(ovOpen===ES)drawEstado();if(HUD.style.display!=='none'){const s=Logic.st,inf=Render.info();HUD.innerHTML='Raíces de Niebla v'+VERSION+'<br>FPS: '+fps+' · resolución '+Math.round(CFG.levels[Render.level]*100)+' %<br>'+World.msnm(s.y)+' msnm · '+World.zone(s.x,s.z,s.y)+'<br>'+Fauna.info()+'<br>'+Render.RT.info()+'<br>Toques: '+Input.touchInfo()+'<br>'+inf.calls+' llamadas · '+Math.round(inf.triangles/1000)+' mil triángulos'}
 const s=Logic.st;if(!s.alive&&!deadShown&&(s._deadAt=s._deadAt||performance.now(),performance.now()-s._deadAt>2600)){deadShown=true;/* 0.40.0: el aviso sale cuando el cuerpo ya cayó */document.getElementById('dc').textContent='Causa: '+s.cause;document.getElementById('dd').textContent='Días sobrevividos: '+(s.day-s.startDay)+' · llegaste al día '+s.day;DEAD.style.display='flex'}if(s.alive){deadShown=false;s._deadAt=0}}
+/* 0.42.9: con el celular lento, el ajuste automático apaga primero lo que más gasta de la tarjeta gráfica
+   (medido con gráficos al máximo: detalle del suelo ≈ 1/3 del cuadro, posproceso HDR ≈ 1/3) y después baja el trazado y el perfil.
+   Al ir sobrado los devuelve en orden inverso. */
+window.AQX={tex:0,pp:0};function aqDown(){const K=window.TXU&&TXU.uTexK.value,P=Render.PP.st;if(K&&K.x>.001&&K.w<.5){K.w=1;AQX.tex=1;return 'suelo sencillo'}if(P.ok&&P.on){P.on=false;AQX.pp=1;return 'sin posproceso HDR'}return null}
+function aqUp(){const K=window.TXU&&TXU.uTexK.value,P=Render.PP.st;if(AQX.pp){AQX.pp=0;if(!P.on){P.on=true;return 'el posproceso HDR'}}if(AQX.tex){AQX.tex=0;if(K&&K.w>.5){K.w=0;return 'el detalle del suelo'}}return null}
 let ERRN=0;window.__gameErr=m=>{if(ERRN++<3)say('Error: '+(m||'desconocido')+' (el juego sigue; si se repite, guarda y envía una captura)')};
 function frame(now){try{frame0(now)}catch(e){console.error(e);window.__gameErr(e&&e.message);requestAnimationFrame(frame)}}
 function frame0(now){if(BOOT.on){last=now;requestAnimationFrame(frame);return}{const cap=paused?15:PERF.capOn()?PERF.fpsCap():0;if(cap&&now-lastF<920/cap){requestAnimationFrame(frame);return}}lastF=now;let dt=Math.min(.25,(now-last)/1000);last=now;if(paused)Input.clearQ();DIAG.begin(now);
@@ -6969,8 +6977,10 @@ DIAG.lap('interfaz');Render.draw(prev,cur,Math.min(1,acc/CFG.step),s,paused?0:dt
 fr++;ft+=dt;hudT+=dt;if(ft>=1){fps=Math.round(fr/ft);fr=0;ft=0;sinceChange++;AQ.sec++;
 if(!paused){const cp=PERF.fpsCap(),lo=cp?Math.min(48,cp*.87):48,hi=cp?Math.min(58,cp*.97):58;if(fps<lo){lowS++;highS=0}else if(fps>=hi){highS++;lowS=0}else{lowS=0;highS=0}
 if(AQ.sec<AQ.hold){lowS=0;highS=0}
-if(HUDL.auto&&sinceChange>=5){/* 0.26.2: el ajuste automático baja efectos y perfil, nunca la resolución */if(lowS>=2&&Render.RT.degrade()){sinceChange=0;lowS=0;if(AQ.sec-AQ.tUp<30)AQ.up=Math.min(120,AQ.up*3);AQ.tDown=AQ.sec;AQ.log.push([AQ.sec,'baja',fps,Render.RT.qName]);if(AQ.log.length>40)AQ.log.shift();say('Luz «'+Render.RT.qName+'»: el celular iba lento ('+fps+' cuadros/s)')}else if(lowS>=3&&PERF.auto()&&PERF.p>0){say('El celular va lento: perfil '+PERF.set(PERF.p-1,true)+' (Pausa → Configuración → Rendimiento)');sinceChange=0;lowS=0}
-else if(highS>=AQ.up&&Render.RT.improve()){sinceChange=0;highS=0;AQ.tUp=AQ.sec;AQ.log.push([AQ.sec,'sube',fps,Render.RT.qName]);if(AQ.log.length>40)AQ.log.shift();say('Luz «'+Render.RT.qName+'» otra vez')}}
+if(HUDL.auto&&sinceChange>=5){/* 0.26.2: el ajuste automático baja efectos y perfil, nunca la resolución */let aq=null;if(lowS>=2&&(aq=aqDown())){sinceChange=0;lowS=0;AQ.tDown=AQ.sec;AQ.log.push([AQ.sec,'baja',fps,aq]);if(AQ.log.length>40)AQ.log.shift();say('Ajuste automático: '+aq+' (el celular iba lento, '+fps+' cuadros/s)')}
+else if(lowS>=2&&Render.RT.degrade()){sinceChange=0;lowS=0;if(AQ.sec-AQ.tUp<30)AQ.up=Math.min(120,AQ.up*3);AQ.tDown=AQ.sec;AQ.log.push([AQ.sec,'baja',fps,Render.RT.qName]);if(AQ.log.length>40)AQ.log.shift();say('Luz «'+Render.RT.qName+'»: el celular iba lento ('+fps+' cuadros/s)')}else if(lowS>=3&&PERF.auto()&&PERF.p>0){say('El celular va lento: perfil '+PERF.set(PERF.p-1,true)+' (Pausa → Configuración → Rendimiento)');sinceChange=0;lowS=0}
+else if(highS>=AQ.up&&Render.RT.improve()){sinceChange=0;highS=0;AQ.tUp=AQ.sec;AQ.log.push([AQ.sec,'sube',fps,Render.RT.qName]);if(AQ.log.length>40)AQ.log.shift();say('Luz «'+Render.RT.qName+'» otra vez')}
+else if(highS>=AQ.up&&(aq=aqUp())){sinceChange=0;highS=0;AQ.tUp=AQ.sec;AQ.log.push([AQ.sec,'sube',fps,aq]);if(AQ.log.length>40)AQ.log.shift();say('Ajuste automático: vuelve '+aq)}}
 if(AQ.up>8&&AQ.tUp>AQ.tDown&&AQ.sec-AQ.tUp>=90)AQ.up=8}}
 if(hudT>=.25){hudT=0;hud()}
 if(msgT>0){msgT-=dt;if(msgT<=0)MSG.style.display='none'}
