@@ -273,8 +273,14 @@ setTimeout(function(){if(!(window.BOOT&&window.BOOT.ms>0)&&!shown){var e=documen
 <script>if(window.THREE&&!THREE.Sky)document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Sky.js"><\/script>')</script>
 <script>if(!window.THREE)window.__loadErr('no se pudo descargar la librería 3D (Three.js). Revisa la conexión a internet')</script>
 <script>
-const VERSION='0.42.5';
+const VERSION='0.42.6';
 const CHANGELOG=[
+['0.42.6','Animales, construcción y conexión',[
+'Los animales salvajes ya no atraviesan paredes, puertas, muebles ni las cercas de los corrales.',
+'No se puede poner una base encima de un mueble o una máquina.',
+'Multijugador directo: si la conexión se corta un momento (cambio de Wi-Fi, pantalla apagada) espera 12 s a que vuelva en vez de cortar la partida.',
+'Sala: si el anfitrión cambia de mundo, los invitados lo cargan.',
+'La ventana de Estado solo se redibuja cuando cambia algo (antes 4 veces por segundo).']],
 ['0.42.5','Gráficos, multijugador y controles',[
 'Árboles y pasto con distinto balanceo ya no comparten por error el mismo sombreador (algunos se mecían con la amplitud de otro).',
 'El reflejo del agua muestra al jugador igual que la cámara.',
@@ -2014,7 +2020,7 @@ let list=[],shots=[],idc=0,acc=0,spT=2,senT=0,pumaT=0;
 const note=t=>{st.msg=t};
 const okGround=(x,z)=>World.riverMask(x,z)<.05&&World.waterAt(x,z)<World.H(x,z)-.4;
 function bad(a,hd,L){const x=a.x+Math.sin(hd)*L,z=a.z+Math.cos(hd)*L;const g=World.Hmesh(x,z);if(World.waterAt(x,z)>g-.2)return true;if((g-a.y)/L>CFG.maxSlope*.9)return true;
-const c=CFG.vegCell,ci=Math.floor(x/c),cj=Math.floor(z/c);for(let j=cj-1;j<=cj+1;j++)for(let i=ci-1;i<=ci+1;i++){const o=World.objAt(i,j);if(o&&o.r&&Math.hypot(x-o.x,z-o.z)<o.r+.35)return true}return false}
+const c=CFG.vegCell,ci=Math.floor(x/c),cj=Math.floor(z/c);for(let j=cj-1;j<=cj+1;j++)for(let i=ci-1;i<=ci+1;i++){const o=World.objAt(i,j);if(o&&o.r&&Math.hypot(x-o.x,z-o.z)<o.r+.35)return true}return Build.blocks(x,z,g)}
 function add(k,x,z,dead){const sp=SP[k],a={id:++idc,k,x,z,y:World.Hmesh(x,z),hd:Math.random()*6.283,face:0,hp:sp.hp,s:'idle',fT:0,wT:0,moving:false,zz:0,zd:1,dT:0,loot:null,gone:false,v:0,ph:Math.random()*6,cd:0,hT:0,lost:0,armed:0,warned:false};a.face=a.hd;if(dead){a.s='dead';a.hp=0;a.loot=Object.assign({},sp.loot)}list.push(a);return a}
 function senses(a){const sp=SP[a.k],d=Math.hypot(st.x-a.x,st.z-a.z),v=Math.hypot(st.vx,st.vz),noise=Math.max(.12,v/5)*(st.crouch?.5:1),night=(st.hour<5.5||st.hour>18.5)?.65:1,vis=(.4+.6*Math.min(1,v/3))*(st.crouch?.6:1)*night*Logic.wxVal('fd')*(st.torch>0?1.5:1);
 const hear=d<sp.hear*noise;let see=false;if(d<sp.sight*vis){const ang=Math.abs(wrap(Math.atan2(st.x-a.x,st.z-a.z)-a.face));see=ang<1.75||d<3}return{d,see,hear,noise,vis}}
@@ -2228,7 +2234,7 @@ fill(o,lv);
 if(Math.hypot(o.x-st.x,o.z-st.z)>6)return 'Está muy lejos';
 if(key==='base'){if(baseAt(o.i,o.j))return 'Ya hay una base aquí';if(wet(o.x,o.z))return 'No se puede sobre el agua';
 if(o.snap){if(o.nbSpread>.05)return 'Las bases vecinas están a distinta altura: no encaja';if(o.mx>o.y+1)return 'El suelo sobresale más de 1 m sobre las bases vecinas: no se puede alinear';if(o.sk>6.6)return 'Muy alto sobre el suelo: máximo 6 m de pilotes'}else if(o.slope>1.4)return 'Terreno muy inclinado (más de 25°)';if(o.sk>6.6)return 'Muy alto: máximo 6 m de pilotes';
-if(obstacle(o.x,o.z,1.5,1.5))return 'Hay un árbol o roca en el camino';if(st.fires.some(f=>Math.abs(f.x-o.x)<1.8&&Math.abs(f.z-o.z)<1.8))return 'Hay una fogata en el camino';if(P().some(p=>p.t==='huerta'&&Math.abs(p.x-o.x)<3&&Math.abs(p.z-o.z)<3))return 'Hay una huerta en el camino';return null}
+if(obstacle(o.x,o.z,1.5,1.5))return 'Hay un árbol o roca en el camino';if(st.fires.some(f=>Math.abs(f.x-o.x)<1.8&&Math.abs(f.z-o.z)<1.8))return 'Hay una fogata en el camino';if(P().some(p=>p.t==='huerta'&&Math.abs(p.x-o.x)<3&&Math.abs(p.z-o.z)<3))return 'Hay una huerta en el camino';if(P().some(p=>RAD[p.t]&&Math.abs(p.x-o.x)<1.5&&Math.abs(p.z-o.z)<1.5&&p.y<o.y+.3))return 'Hay un mueble o máquina en el camino: muévelo antes';return null}
 if(key==='pared'||key==='puerta'){if(wallAt(o.e,o.i,o.j,o.s))return 'Ya hay una pared en este borde';const sd=sidesOf(o.e,o.i,o.j,o.s);if(!sd[0]&&!sd[1])return 'Necesita una base o un piso a un lado del borde';return null}
 if(key==='techo'){if(!fl(o.i,o.j,o.s))return 'Necesita una base o un piso debajo';if(find('techo',o.i,o.j,undefined,o.s))return 'Ya hay un techo aquí';if(find('piso',o.i,o.j,undefined,o.s+1))return 'Ya hay un piso encima: hace de techo';if(wallsOfCell(o.i,o.j,o.s).length<2)return 'Necesita 2 paredes de apoyo';return null}
 if(key==='piso')return pisoWhy(o);
@@ -2309,6 +2315,11 @@ function collide(){for(const p of P()){if(Math.abs(p.x-st.x)>4||Math.abs(p.z-st.
 if(p.t==='pared'){if(st.y>p.y+2.35||st.y<p.y-1.2)continue;const hx=p.e==='Z'?1.5:.07,hz=p.e==='X'?1.5:.07,m=CFG.radius;const dx=st.x-p.x,dz=st.z-p.z,cx=Math.max(-hx,Math.min(hx,dx)),cz=Math.max(-hz,Math.min(hz,dz)),ex=dx-cx,ez=dz-cz,d=Math.hypot(ex,ez);if(d<m){if(d>1e-4){st.x=p.x+cx+ex/d*m;st.z=p.z+cz+ez/d*m}else{if(p.e==='X')st.x=p.x+(dx>=0?1:-1)*(hx+m);else st.z=p.z+(dz>=0?1:-1)*(hz+m)}}}
 else if(p.t==='puerta'){if(st.y>p.y+2.35||st.y<p.y-1.2)continue;for(const sgn of[-1,1]){const px=p.e==='Z'?p.x+sgn*1.0:p.x,pz=p.e==='X'?p.z+sgn*1.0:p.z,hx=p.e==='Z'?.5:.07,hz=p.e==='X'?.5:.07,m=CFG.radius;const dx=st.x-px,dz=st.z-pz,cx=Math.max(-hx,Math.min(hx,dx)),cz=Math.max(-hz,Math.min(hz,dz)),ex=dx-cx,ez=dz-cz,d=Math.hypot(ex,ez);if(d<m&&d>1e-4){st.x=px+cx+ex/d*m;st.z=pz+cz+ez/d*m}}}
 else if(RAD[p.t]){if(Math.abs(p.y-st.y)>1.4)continue;const dx=st.x-p.x,dz=st.z-p.z,d=Math.hypot(dx,dz),m=RAD[p.t]+CFG.radius;if(d<m&&d>1e-4){st.x=p.x+dx/d*m;st.z=p.z+dz/d*m}}}}
+/* 0.42.6: lo que corta el paso a los animales (paredes, puertas, muebles y cercas de corral) */
+function blocks(x,z,y){const m=.45;for(const p of P()){const dx=x-p.x,dz=z-p.z;if(Math.abs(dx)>5||Math.abs(dz)>5||Math.abs(y-p.y)>2.2)continue;
+if(p.t==='pared'||p.t==='puerta'){const hx=p.e==='Z'?1.5:.07,hz=p.e==='X'?1.5:.07;if(Math.abs(dx)<hx+m&&Math.abs(dz)<hz+m)return true}
+else if(RAD[p.t]){if(Math.hypot(dx,dz)<RAD[p.t]+m)return true}
+else if(p.t==='corral'||p.t==='corral_g'){const hw=PENHW[p.t],q=Crianza.loc(p,x,z);if(Math.abs(Math.abs(q[0])-hw)<m&&Math.abs(q[1])<hw+m)return true;if(Math.abs(Math.abs(q[1])-hw)<m&&Math.abs(q[0])<hw+m)return true}}return false}
 // desgaste y rayos
 function daily(){const rain=st.rainToday;st.rainToday=false;const cm=cropDaily(false);const lost=[];for(const p of P().slice()){let w=0;if(p.t==='base'||p.t==='pared'||p.t==='puerta'||p.t==='techo'||p.t==='piso'||p.t==='escalera'||p.t==='inclinado')w=p.lv>=3?1:p.lv>=2?3:rain?20:10;else if(p.t!=='caja')w=2;w*=p.fin&&FIN[p.fin]?FIN[p.fin].wear:1;p.hp-=p.cal?Math.ceil(w/2):Math.round(w);if(p.hp<=0){P().splice(P().indexOf(p),1);spill(p);lost.push(p)}}
 const more=stabilize();const all=lost.concat(more);if(all.length){st.msg='Se derrumbó: '+all.map(p=>CAT[p.t].n.toLowerCase()).join(', ')+'. Repara a tiempo'}if(cm.length)st.msg=(st.msg?st.msg+' · ':'')+cm.join(' · ');st.dirty++}
@@ -2528,7 +2539,7 @@ const cx=(i+.5)*CS,cz=(j+.5)*CS,mk2=(t,dx,dz)=>{const o={t,x:cx+dx,z:cz+dz};fill
 st.y=baseAt(i,j).y;mk2('caja',.95,-.95);
 st.x=(i+2)*CS-.9;st.z=cz+.6;st.y=floorAt(st.x,st.z,st.y+.3);st.face=-Math.PI/2;st.camYaw=Math.PI/2;return{i,j}}
 function hurt(p,n){p.hp-=n;if(p.hp<=0){const f=remove(p);return[p].concat(f)}return[]}
-return{hitWorld,hpPeek,MREC,mLoad,mCancel,mTake,mStep,tallerDemo,powered,fuelleK,irrigate,riegoDemo,serieDemo,upDemo,clearAt,addPieceFree:(o,lv)=>addPiece(o,lv,true),costOf,canalSnap,canalFlow,FIN,finish,chimneyNear,PENHW,frostHit,hurt,removePiece:remove,CAT,ORDER,MAIN,needEra,cropDaily,cropReady,cropNeed,nearKind,nearHuerta,get pieces(){return st.build},select,cancel,updateGhost,place,modeActs,nearActs,doAct,tick,daily,lightning,collide,floorAt,shelterAt,roofAt,posteNear,litPosts,toBox,fromBox,repair,repairInfo,upgrade,dismantle,sleepStep,sleepRate,wake,autoHouse,autoHouse2,levelAt,fl,stairAt,pisoWhy,SH,check,target,lvInfo,hasMats,wallsOfCell,baseAt,find,fill,addPiece}})();
+return{hitWorld,hpPeek,MREC,mLoad,mCancel,mTake,mStep,tallerDemo,powered,fuelleK,irrigate,riegoDemo,serieDemo,upDemo,clearAt,addPieceFree:(o,lv)=>addPiece(o,lv,true),costOf,canalSnap,canalFlow,FIN,finish,chimneyNear,PENHW,frostHit,hurt,blocks,removePiece:remove,CAT,ORDER,MAIN,needEra,cropDaily,cropReady,cropNeed,nearKind,nearHuerta,get pieces(){return st.build},select,cancel,updateGhost,place,modeActs,nearActs,doAct,tick,daily,lightning,collide,floorAt,shelterAt,roofAt,posteNear,litPosts,toBox,fromBox,repair,repairInfo,upgrade,dismantle,sleepStep,sleepRate,wake,autoHouse,autoHouse2,levelAt,fl,stairAt,pisoWhy,SH,check,target,lvInfo,hasMats,wallsOfCell,baseAt,find,fill,addPiece}})();
 const Crianza=(()=>{
 const st=Logic.st,SP=Fauna.SP,P=()=>st.build,PENHW=Build.PENHW;
 const SPC={cuy:{sz:1,f:1,w:1,prod:'estiercol',pn:1},gallina:{sz:1,f:1,w:1,prod:'huevo',pn:1},conejo:{sz:1,f:1,w:1,prod:'estiercol',pn:1},cabra:{sz:1,f:3,w:3,prod:'leche',pn:1},vaca:{sz:2,f:6,w:6,prod:'leche',pn:2,big:1},mula:{sz:2,f:4,w:4,prod:'estiercol',pn:2,big:1}};
@@ -4828,7 +4839,7 @@ const Net=(()=>{
   try{await rm.presence({n:name,h:host?1:0,v:VERSION})}catch(e){if(e&&(e.code==='not_granted'||e.code==='revoked')){leaveRoom();throw new Error(NP)}}
   say(host?'Partida creada: código '+code:'Entraste a la partida '+code);draw()}
  function leaveRoom(){if(rm){try{rm.leave()}catch(e){}rm=null}for(const R of remotes.values())R.r.dispose();remotes.clear();if(trans==='room'){trans='';state='off'}}
- function syncFromHost(w,nm){const s=L(),key=w.seed+'/'+w.day+'/'+w.hour;if(key===rWkey)return;rWkey=key;
+ function syncFromHost(w,nm){const s=L(),key=w.seed+'/'+w.day+'/'+w.hour;if(key===rWkey)return;rWkey=key;if(rSync&&w.seed!==World.seed)rSync=false;
   if(!rSync){rSync=true;if(World.seed!==w.seed){say('Cargando el mundo de '+nm+'…');Render.newWorld(w.seed)}if(!w.cave){const a=Math.random()*6.28;Logic.place(w.x+Math.cos(a)*2.5,w.z+Math.sin(a)*2.5);Render.forceAround(s.x,s.z)}s.day=w.day;s.hour=w.hour;applyWx(w.wx);say(nm+' está contigo en la montaña');return}
   s.day=w.day;let dh=w.hour-s.hour;if(dh>12)dh-=24;if(dh<-12)dh+=24;if(Math.abs(dh)>.05)s.hour=(w.hour+24)%24;applyWx(w.wx)}
  function roomFrame(dt,px,py,pz,face,spd,s){const now=performance.now();
@@ -4853,7 +4864,7 @@ const Net=(()=>{
   return JSON.parse(new TextDecoder().decode(out))}
  const waitIce=()=>new Promise(res=>{if(pc.iceGatheringState==='complete')return res();const t=setTimeout(res,3500);pc.addEventListener('icegatheringstatechange',()=>{if(pc&&pc.iceGatheringState==='complete'){clearTimeout(t);res()}})});
  function mkPC(){close(true);if(!window.RTCPeerConnection)throw new Error('Este navegador no permite conexiones directas (WebRTC)');pc=new RTCPeerConnection({iceServers:ICE});
-  pc.onconnectionstatechange=()=>{const c=pc&&pc.connectionState;if(c==='failed'){err='No se pudo conectar: revisen que estén en la misma red Wi-Fi y repitan los códigos';if(state==='on')lost();else{state='off';draw()}}else if((c==='disconnected'||c==='closed')&&state==='on')lost()};
+  pc.onconnectionstatechange=()=>{const c=pc&&pc.connectionState;if(c==='failed'){err='No se pudo conectar: revisen que estén en la misma red Wi-Fi y repitan los códigos';if(state==='on')lost();else{state='off';draw()}}else if(c==='disconnected'&&state==='on'){clearTimeout(pc.__dcT);const me=pc;me.__dcT=setTimeout(()=>{if(pc===me&&me.connectionState!=='connected'&&state==='on')lost()},12000);say('Conexión inestable con el otro jugador: esperando que vuelva…')}else if(c==='connected'&&pc.__dcT){clearTimeout(pc.__dcT);pc.__dcT=0}else if(c==='closed'&&state==='on')lost()};
   pc.ondatachannel=e=>bind(e.channel)}
  function bind(c){if(c.label==='u')chU=c;else ch=c;c.onmessage=e=>{rxB+=(e.data&&e.data.length)||0;try{onMsg(JSON.parse(e.data))}catch(x){}};c.onopen=()=>{if(ch&&ch.readyState==='open'&&state!=='on')opened()};c.onclose=()=>{if(state==='on'&&c===ch)lost()}}
  function send(o,fast){const c=fast&&chU&&chU.readyState==='open'?chU:ch;if(!c||c.readyState!=='open')return;const t=JSON.stringify(o);txB+=t.length;try{c.send(t)}catch(e){}}
@@ -5898,7 +5909,7 @@ h+='<h4>Temperatura</h4><div class="row"><span>Aire</span><span>'+s.ambient.toFi
 const cd=[];if(s.ill.diarrea>0)cd.push(['Diarrea (sed al doble)',s.ill.diarrea]);if((s.ill.intox||0)>0)cd.push(['Intoxicación (pasa sola)',s.ill.intox]);if((s.ill.sangra||0)>0)cd.push([s.ill.sangra>=2?'Sangrado grave (6 por hora; venda)':'Sangrado leve (2 por hora; se corta a las 3 h)',s.ill.sangra>=2?99:Math.max(0,3-(s.ill.sangraT||0))]);if((s.ill.veneno||0)>0)cd.push(['Veneno (4 por hora; cataplasma lo reduce)',s.ill.veneno]);if((s.ill.fiebre||0)>0)cd.push(['Fiebre por infección (1,5 por hora; cataplasma)',s.ill.fiebre]);if((s.ill.herida||0)>0&&!(s.ill.fiebre>0))cd.push([s.ill.vend?'Herida vendada (cierra)':'Herida abierta (se infecta a las 5 h sin venda)',s.ill.herida]);
 {const wk=Logic.WX[s.wx.k],nk=Logic.WX[s.wx.nk||'desp'];h+='<h4>Clima y temporada</h4><div class="row"><span>Clima ahora</span><span>'+wk.n+'</span></div><div class="row"><span>Cambio del clima en</span><span>'+s.wx.t.toFixed(1)+' h</span></div><div class="row"><span>Temporada</span><span>'+(Logic.seasonOf(s.day)==='seca'?'seca':'de lluvias')+' · día '+(((s.day-1)%48)+1)+' de 48</span></div><div class="row"><span>Temporada dura</span><span>'+Meta.hInfo()+'</span></div><div class="row"><span>Efecto en el aire</span><span>'+(wk.t>0?'+':'')+wk.t+' °C</span></div><div class="row"><span>Ropa mojada</span><span>'+Math.round(s.S.wet*100)+' %'+(s.shelter?' · bajo un árbol':'')+'</span></div>'}
 if(cd.length){h+='<h4>Condiciones</h4>';cd.forEach(c=>{h+='<div class="row"><span>'+c[0]+'</span><span>'+c[1].toFixed(1)+' h</span></div>'})}
-h+='<button class="tb" id="esc" style="position:sticky;bottom:0;right:auto;margin-top:8px">Cerrar</button>';const st0=ES.scrollTop;ES.innerHTML=h;ES.scrollTop=st0;document.getElementById('esc').onclick=()=>openOv(ES,false)}
+h+='<button class="tb" id="esc" style="position:sticky;bottom:0;right:auto;margin-top:8px">Cerrar</button>';if(ES.__h===h)return;ES.__h=h;const st0=ES.scrollTop;ES.innerHTML=h;ES.scrollTop=st0;document.getElementById('esc').onclick=()=>openOv(ES,false)}
 function sbUpdate(){const el=ovOpen;if(!el){SBT.style.display='none';return}const h=el.clientHeight,sh=el.scrollHeight;if(sh<=h+2){SBT.style.display='none';return}SBT.style.display='block';SBT.style.top='18px';SBT.style.height=(h-16)+'px';const tr=h-16,th=Math.max(40,tr*h/sh);SB.style.height=th+'px';SB.style.top=((tr-th)*el.scrollTop/(sh-h))+'px'}
 [NV,ES,INV,CRF,BLD,LOR,PAU,document.getElementById('maq')].forEach(el=>el.addEventListener('scroll',sbUpdate,{passive:true}));
 function sbDrag(clientY){const el=ovOpen;if(!el)return;const r=SBT.getBoundingClientRect(),h=el.clientHeight,sh=el.scrollHeight;const th=Math.max(40,r.height*h/sh);const k=Math.max(0,Math.min(1,(clientY-r.top-th/2)/(r.height-th)));el.scrollTop=k*(sh-h);sbUpdate()}

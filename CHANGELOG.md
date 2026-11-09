@@ -2,6 +2,14 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.6 · Animales, construcción y conexión
+
+- Los animales salvajes ya no atraviesan paredes, puertas, muebles ni las cercas de los corrales.
+- No se puede poner una base encima de un mueble o una máquina.
+- Multijugador directo: si la conexión se corta un momento (cambio de Wi-Fi, pantalla apagada) espera 12 s a que vuelva en vez de cortar la partida.
+- Sala: si el anfitrión cambia de mundo, los invitados lo cargan.
+- La ventana de Estado solo se redibuja cuando cambia algo (antes 4 veces por segundo).
+
 ## 0.42.5 · Gráficos, multijugador y controles
 
 - Árboles y pasto con distinto balanceo ya no comparten por error el mismo sombreador (algunos se mecían con la amplitud de otro).
