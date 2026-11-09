@@ -2,6 +2,12 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.43.0 · Personaje nuevo hecho en Blender
+
+- El personaje se rehízo en Blender con estilo low-poly: cuerpo facetado con sombras marcadas, cara nueva (ojos grandes con brillo, nariz en cuña, cejas y boca), pelo con flequillo en punta y patillas, bóxer con elástico y costura, botas con suela y cordones, camisa y mangas nuevas y mochila con tapa, bolsillo, correas y hebilla.
+- Cada pieza conserva las articulaciones de antes: caminar, correr, talar, nadar, el equilibrio y el muñeco de trapo funcionan igual.
+- Es la primera tanda del remodelado: siguen árboles y plantas, animales, construcciones y objetos.
+
 ## 0.42.10 · Siempre sobre el suelo
 
 - Estando quieto, el personaje ya no puede quedar flotando o enterrado si algo cambia debajo (una base que se rompe, un traslado): ahora cae o sube al suelo enseguida. Lo encontró el robot que juega partidas rápidas (80 h de juego en 8 partidas).
