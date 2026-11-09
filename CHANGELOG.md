@@ -2,6 +2,15 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.49.0 · Corrales, máquinas y acabados nuevos hechos en Blender
+
+- Corral y corral grande: postes con dos travesaños, portón abierto, pacas de heno; el grande con establo de techo de hojas en hileras y abrevadero.
+- Gallinero de varas con techo de hojas, perchas, rampa, nido con huevos y comedero de guadua.
+- Pozo de piedra con agua honda, torno con manivela, soga, balde y techito; bebedero con agua y comedero con pasto.
+- Molino de tablas sobre base de piedra con su rueda de paletas; noria con cangilones de barro y canal de guadua; rueda hidráulica con paletas (las ruedas giran igual que antes).
+- Acabados: adobe en hiladas trabadas, ladrillo con mortero claro y arco en la puerta, paja en mechones con borde deshilachado y teja de barro curva.
+- El telar, la prensa y el fuelle siguen como estaban (sus piezas animadas dependen de su forma).
+
 ## 0.48.1 · Bosque más liviano en perfiles bajos
 
 - En Ultra bajo y Bajo, los árboles y arbustos cercanos usan el nivel de detalle medio de los modelos nuevos: el bosque vuelve a pesar casi lo mismo que antes del remodelado en celulares lentos (medido en el bosque de niebla).
