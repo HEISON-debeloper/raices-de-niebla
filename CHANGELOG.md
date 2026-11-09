@@ -2,6 +2,13 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.51.0 · Telar, prensa, fuelle, puente y huerta hechos en Blender
+
+- Telar con tela tejida a rayas, rodillo de tela enrollada, urdimbre, peine con dientes en el batán, lizos con hilos, lanzadera con punta y banquito con ovillos; las piezas se mueven igual que antes al tejer.
+- Prensa de tornillo con rosca, manivela, tuerca de hierro, cuba de piedra con fruta prensada y pico con jugo; fuelle con tapa de cuero plegado, asa y tobera de hierro.
+- Puente armado con tablas clavadas (tres variantes que se alternan), vigas, postes con amarres, sogas de baranda y pilotes: se arma a la medida de cada puente.
+- Huerta con surcos redondeados, terrones, charquitos cuando está regada, postes y cuerdas; brotes, matas de papa que crecen, florecen y dan papas, y maíz con hojas largas y mazorca con barbas.
+
 ## 0.50.0 · Pasto y helechos nuevos hechos en Blender
 
 - Matas de pasto con 10 a 12 hojas finas y curvas de tres tramos, oscuras abajo y claras en la punta, algunas con espiga; siguen tomando el color del suelo de cada zona.
