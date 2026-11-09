@@ -2,6 +2,14 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.0 · Más rápido en celulares Android
+
+- Medido antes de cambiar: en un celular de gama baja simulado el cuadro tardaba 223 ms en el preset Bajo; el suelo era el 54 % de ese tiempo y su textura de detalle (hasta 7 lecturas por píxel) un tercio.
+- Suelo ligero en Ultra bajo y Bajo: una sola lectura de textura por píxel en vez de hasta 7 (sin relieve ni mezcla triplanar). En Medio y Alto se ve igual que antes.
+- Resolución base por preset (al recargar): Ultra bajo 0,9 y Bajo 1,1 (antes 1,5 en todos los celulares). Medio y Alto no cambian.
+- Resultado medido en la misma prueba: Bajo 223 → 126 ms por cuadro (−43 %), Ultra bajo 195 → 92 ms (−53 %).
+- No cambia: jugabilidad, mundo, guardado ni los presets Medio y Alto.
+
 ## 0.41.3 · Pulgares más cortos, manos en espejo y agarre con la muñeca recta
 
 - Pulgar: las tres falanges miden 39, 28 y 22 mm (antes 48, 32 y 25) y nace 4 mm más cerca de la muñeca, así la punta llega a la mitad de la primera falange del índice, como en una mano real; la eminencia tenar es un poco más baja.
