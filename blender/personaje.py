@@ -170,6 +170,22 @@ pk = box(0, 0, 0, .3, .36, .16, S['pack']).add(box(0, .14, .01, .31, .1, .17, S[
 pk.add(box(.1, .04, -.09, .04, .3, .02, S['strap'])).add(box(-.1, .04, -.09, .04, .3, .02, S['strap'])).add(box(0, .1, .1, .04, .03, .01, S['buckle']))
 parts['pack'] = pk
 
+# ---------------- modelo de la app 3D (ia/ia_partes.json, cortado por ia/paso2.py) reemplaza cuerpo y cabeza ----------------
+import os
+IA = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'ia', 'ia_partes.json')
+if os.path.exists(IA):
+    from PIL import Image
+    D = json.load(open(IA)); cols = [t[3] for k in D for t in D[k]]
+    im = Image.new('RGB', (len(cols), 1)); im.putdata([tuple(int(max(0, min(1, c)) * 255 + .5) for c in cc) for cc in cols])
+    q = im.quantize(200, method=Image.Quantize.MEDIANCUT); qp = q.getpalette(); qi = list(q.getdata()); n = 0
+    for k, tris in D.items():
+        m = M()
+        for t in tris:
+            j = qi[n]; n += 1; m.tri(t[0], t[1], t[2], (qp[3 * j] << 16) | (qp[3 * j + 1] << 8) | qp[3 * j + 2])
+        parts[k] = m
+    for k in ('hair', 'eyes'):  # ya vienen pintados en la cabeza: una cara mínima escondida dentro del cráneo
+        m = M(); m.tri((0, .1, 0), (.001, .1, 0), (0, .101, 0), S['skin']); parts[k] = m
+    print('modelo de la app 3D:', {k: len(D[k]) for k in D})
 # ---------------- exportar al formato del juego ----------------
 def lin(c): return tuple((v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4) for v in srgb(c))
 out = {}; ntri = 0

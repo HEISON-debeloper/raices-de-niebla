@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.53.0 · Personaje nuevo hecho con la app 3D
+
+- El cuerpo y la cara salen del modelo 3D generado a partir de la imagen de referencia: reducido a unos 7 mil triángulos, cortado en las piezas del esqueleto del juego (cadera, torso, cuello, cabeza, brazo, muslo, pierna, pie) y con el color de su textura en cada cara.
+- Brazo bajado de la pose en T y piernas enderezadas para que la animación de siempre lo mueva igual; antebrazos y manos toman el tono de piel del modelo.
+
 ## 0.52.1 · Puma color naranja como la referencia
 
 - Pelaje naranja, pecho y panza crema, patas a juego y cola más larga con la punta oscura.
