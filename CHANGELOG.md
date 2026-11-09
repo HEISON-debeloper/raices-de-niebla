@@ -2,6 +2,10 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.48.1 · Bosque más liviano en perfiles bajos
+
+- En Ultra bajo y Bajo, los árboles y arbustos cercanos usan el nivel de detalle medio de los modelos nuevos: el bosque vuelve a pesar casi lo mismo que antes del remodelado en celulares lentos (medido en el bosque de niebla).
+
 ## 0.48.0 · Lugares de la historia hechos en Blender
 
 - Avioneta caída: fuselaje con franja roja, nariz y cola, timón, un ala entera y la otra rota, cabina con el parabrisas roto, hélice doblada, ruedas, restos de aluminio, maleta y la mancha quemada del aterrizaje.
