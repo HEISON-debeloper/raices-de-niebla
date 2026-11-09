@@ -2,6 +2,14 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.44.0 · Árboles y plantas nuevos hechos en Blender
+
+- Árbol del valle: tronco con raíces en contrafuerte, tres ramas y copa redonda de racimos facetados con luz cálida arriba y sombra fría abajo.
+- Roble andino del bosque de niebla: tronco alto con musgo, copa por pisos, bromelias rojas en el tronco y barbas de musgo colgando.
+- Palma de cera: tallo claro con anillos, cogollo verde y hojas arqueadas con folíolos; las dos de abajo, secas y amarillas.
+- Arbusto de racimos redondos (algunos con bayas moradas), frailejón con falda de hojas secas, roseta plateada y flores amarillas, y rocas facetadas con musgo y liquen.
+- Cuatro variantes por especie y tres niveles de detalle para que lo lejano siga siendo liviano; el bosque lejano de las montañas usa el árbol sencillo nuevo en vez de conos.
+
 ## 0.43.0 · Personaje nuevo hecho en Blender
 
 - El personaje se rehízo en Blender con estilo low-poly: cuerpo facetado con sombras marcadas, cara nueva (ojos grandes con brillo, nariz en cuña, cejas y boca), pelo con flequillo en punta y patillas, bóxer con elástico y costura, botas con suela y cordones, camisa y mangas nuevas y mochila con tapa, bolsillo, correas y hebilla.
