@@ -2,6 +2,14 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.48.0 · Lugares de la historia hechos en Blender
+
+- Avioneta caída: fuselaje con franja roja, nariz y cola, timón, un ala entera y la otra rota, cabina con el parabrisas roto, hélice doblada, ruedas, restos de aluminio, maleta y la mancha quemada del aterrizaje.
+- Cabaña del guardabosques: troncos con las puntas cortadas, techo de tejamanil, chimenea de piedra, puerta entreabierta, cama con manta, mesa, estante con ollas, banco, leñera y huerto.
+- Mina abandonada: rocas con musgo, marco de troncos con tornapuntas, derrumbe y tablas cruzadas en la boca, rieles con durmientes, vagoneta con mineral, letrero y farol.
+- Entradas de cueva con helechos y musgo colgando.
+- Con esto termina el remodelado en Blender: personaje, vegetación, animales, construcciones, herramientas, objetos y lugares.
+
 ## 0.47.0 · Herramientas y objetos nuevos hechos en Blender
 
 - Las 18 herramientas rehechas: hachas de piedra, pedernal y hierro con cabeza amarrada y filo claro; lanzas con punta de piedra o de hierro; martillo, cuchillo con mango atado, palo, garrote con clavos, boleadoras, arco con empuñadura de cuero, ballesta, honda, pala, azada, hoz, picos de hierro y de pedernal.
