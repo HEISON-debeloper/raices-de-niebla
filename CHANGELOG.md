@@ -2,6 +2,17 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.42.4 · Más fluido en celular
+
+- Luces de antorchas y fogatas con trazado: la prueba de sombra cuesta unas 7 veces menos; en celular se trazan hasta 2 luces (4 en calidad alta).
+- Reflejos trazados del agua: cada paso lee la altura una vez en vez de cuatro.
+- Construir canales y puentes ya no deja memoria gráfica ocupada al mover la silueta.
+- Crecida del río: revisa objetos y animales solo cuando el agua sube 5 cm, no en cada cuadro.
+- Bases grandes: buscar el piso, el techo y el nivel bajo los pies usa un índice por casilla en vez de recorrer todas las piezas.
+- La barra de salud y estado solo se redibuja cuando cambia algo.
+- Girar el celular o cambiar el tamaño de la ventana espera a que termine antes de recalcular la pantalla.
+- El muñeco de trapo no acumula atraso cuando el celular va lento.
+
 ## 0.42.3 · Agua y terreno
 
 - Lagos vecinos de distinto nivel ya no forman paredes de agua de hasta 14 m: entre los dos queda un borde de tierra que sostiene el lago alto (en 5 mundos de prueba, los bordes con caída de más de 1 m bajaron de 832 a 79).
