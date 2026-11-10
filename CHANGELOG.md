@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.57.1 · Pies y tobillos sin hinchazón
+
+- El muslo y la pierna del juego medían lo mismo, pero en el modelo la pierna es más larga que el muslo: el tobillo quedaba entre dos estiramientos distintos y se aplastaba, y por eso el pie se veía hinchado. Ahora el esqueleto del juego tiene las proporciones del modelo.
+- Cada tramo de brazo y pierna se ajusta a lo largo para medir igual que su hueso, sin deformar el grosor.
+
 ## 0.57.0 · Esqueleto humano completo (63 huesos)
 
 - Columna completa: cadera, dos vértebras lumbares y pecho reparten el giro (antes el abdomen iba pegado al pecho).
