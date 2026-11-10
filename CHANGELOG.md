@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.55.0 · Manos y dedos del personaje con huesos
+
+- Cada dedo del modelo tiene 3 falanges (y el pulgar también) que copian el movimiento de la mano del juego: agarra el mango de las herramientas, cierra el puño al golpear y abre la mano igual que antes.
+- La mano del modelo ahora sigue la muñeca del juego (antes quedaba rígida con el antebrazo).
+
 ## 0.54.1 · Pies y piernas acomodados
 
 - Las piernas del modelo venían abiertas en compás y el giro que las enderezaba iba al revés: ahora quedan rectas, con los pies debajo de las rodillas y apoyados en el suelo.

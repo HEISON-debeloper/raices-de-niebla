@@ -31,6 +31,20 @@ J = {'hips': (0, .97, DZ), 'torso': (0, 1.04, DZ), 'neck': (0, 1.58, DZ), 'head'
      'thR': (legx(.95), .95, DZ), 'snR': (legx(.6), .6, DZ), 'ftR': (legx(.08), .073, DZ)}
 for k in ('up', 'fo', 'hand', 'th', 'sn', 'ft'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
 B = ['hips', 'torso', 'neck', 'head', 'upR', 'foR', 'handR', 'upL', 'foL', 'handL', 'thR', 'snR', 'ftR', 'thL', 'snL', 'ftL']
+# dedos de la mano derecha del modelo (vista desde arriba, coordenadas de Blender): eje y por dedo y articulaciones en x
+FING = [(-.022, (.795, .835, .862)), (.012, (.80, .845, .877)), (.043, (.80, .842, .874)), (.074, (.80, .832, .858))]  # índice, medio, anular, meñique
+FZ = 1.47
+TH0, TH1 = np.array([.712, .012]), np.array([.795, -.068]); THJ = (0, .4, .7)  # pulgar: base → punta; articulaciones en fracción del largo
+for sd in 'RL':
+    for f in range(4):
+        for k in range(3): B.append('f%s%d_%d' % (sd, f, k))
+    for k in range(3): B.append('t%s_%d' % (sd, k))
+FJ = {}
+for sd, sg in (('R', 1), ('L', -1)):
+    for f, (fy, xs) in enumerate(FING):
+        for k in range(3): FJ['f%s%d_%d' % (sd, f, k)] = (sg * xs[k], FZ, -fy)
+    for k in range(3):
+        q = TH0 + (TH1 - TH0) * THJ[k]; FJ['t%s_%d' % (sd, k)] = (sg * q[0], FZ - .008, -q[1])
 def ss(a, b, x): t = min(1, max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t)
 # giro de reposo de cada hueso: de la pose del modelo (brazos en T, piernas abiertas) a la del juego (brazos y piernas rectos hacia abajo)
 def rotz(a): c, s = math.cos(a), math.sin(a); return [c, -s, 0, s, c, 0, 0, 0, 1]
@@ -50,7 +64,20 @@ for (x, y, z) in G:
     # brazo: hombro → codo → muñeca a lo largo de |x|
     if warm > 0:
         e = ss(.41, .47, ax); h = ss(.65, .71, ax)
-        add('up' + sd, warm * (1 - e)); add('fo' + sd, warm * e * (1 - h)); add('hand' + sd, warm * h)
+        add('up' + sd, warm * (1 - e)); add('fo' + sd, warm * e * (1 - h))
+        hw = warm * h
+        if hw > 0:
+            by = -z  # y de Blender
+            tl = None
+            if .69 < ax < .815 and by < -.008 - (ax - .70) * .35:  # pulgar
+                d = TH1 - TH0; t = float(np.dot(np.array([ax, by]) - TH0, d) / np.dot(d, d))
+                a0 = ss(.08, .2, t); a1 = ss(.34, .46, t); a2 = ss(.64, .76, t)
+                add('hand' + sd, hw * (1 - a0)); add('t%s_0' % sd, hw * a0 * (1 - a1)); add('t%s_1' % sd, hw * a1 * (1 - a2)); add('t%s_2' % sd, hw * a2)
+            elif ax > .775:
+                fi = 0 if by <= -.004 else 1 if by <= .028 else 2 if by <= .058 else 3
+                xs = FING[fi][1]; a0 = ss(xs[0] - .012, xs[0] + .008, ax); a1 = ss(xs[1] - .008, xs[1] + .008, ax); a2 = ss(xs[2] - .007, xs[2] + .007, ax)
+                add('hand' + sd, hw * (1 - a0)); add('f%s%d_0' % (sd, fi), hw * a0 * (1 - a1)); add('f%s%d_1' % (sd, fi), hw * a1 * (1 - a2)); add('f%s%d_2' % (sd, fi), hw * a2)
+            else: add('hand' + sd, hw)
     rb = 1 - warm
     if rb > 0:
         if y > 1.0:  # tronco, cuello y cabeza
@@ -71,6 +98,6 @@ im = Image.fromarray(px).resize((2048, 2048), Image.LANCZOS); bio = io.BytesIO()
 out = {'p': enc((G * 1e4).round().astype('<i2')), 'n': enc((GN * 127).round().clip(-127, 127).astype('i1')),
        'uv': enc((UV.clip(0, 1) * 65535).round().astype('<u2')), 'i': enc(np.array(IDX, dtype='<u2' if len(P) < 65536 else '<u4')), 'i32': len(P) >= 65536,
        'si': enc(np.array(IW, dtype='u1')), 'sw': enc(np.array(WW, dtype='u1')),
-       'bones': B, 'j': [J[b] for b in B], 'q': [Q[b] for b in B], 'tex': jpg}
+       'bones': B, 'j': [J.get(b, FJ.get(b)) for b in B], 'q': [Q.get(b, rotz(0)) for b in B], 'tex': jpg}
 js = 'window.CHM=' + json.dumps(out, separators=(',', ':')) + ';'
 open('/home/claude/juego041/blender/ia/personaje-completo.js', 'w').write(js); print('js', len(js) // 1024, 'KB', 'textura', len(jpg) // 1024, 'KB')
