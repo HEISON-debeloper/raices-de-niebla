@@ -2,6 +2,12 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.62.0 · Manos nuevas en primera persona
+
+- Los brazos de la vista en primera persona usan el modelo de manos enviado (antebrazo y mano con su textura).
+- Esqueleto medido sobre esa malla con cortes cada centímetro: codo, muñeca, nudillos, tres falanges por dedo y pulgar; los pesos de la piel se calcularon con Blender.
+- Los dedos siguen la mano de la vista (agarre, puño, mano abierta) y chocan con el mango de cada objeto: nunca lo atraviesan.
+
 ## 0.61.0 · Los dedos ya no atraviesan los objetos
 
 - Cada objeto que se sostiene en primera persona se mide como una cápsula (eje y grosor del mango en su propia malla, alrededor del punto de agarre).
