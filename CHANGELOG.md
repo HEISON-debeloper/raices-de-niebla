@@ -2,6 +2,12 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.57.0 · Esqueleto humano completo (63 huesos)
+
+- Columna completa: cadera, dos vértebras lumbares y pecho reparten el giro (antes el abdomen iba pegado al pecho).
+- Cuello en dos partes, clavículas, giro de brazo y de antebrazo, ayudantes de codo, rodilla y glúteo que conservan el volumen al doblar, y dedos de los pies que quedan planos al levantar el talón.
+- Manos con 15 huesos cada una (tres falanges por dedo y pulgar).
+
 ## 0.56.2 · Caderas más arriba y cuello que gira desde su base
 
 - La articulación de la cadera sube 4 cm: las piernas giran desde donde está la cadera del modelo y no desde el borde del bóxer (muslo y pierna 2 cm más largos, el pie queda en el mismo sitio).

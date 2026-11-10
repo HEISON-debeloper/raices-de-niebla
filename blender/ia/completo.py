@@ -29,9 +29,11 @@ DZ = -.03
 J = {'hips': (0, .97, DZ), 'torso': (0, 1.04, DZ), 'neck': (0, 1.53, DZ), 'head': (0, 1.65, DZ),
      'upR': (.19, 1.467, DZ), 'foR': (.44, 1.467, DZ), 'handR': (.68, 1.467, DZ),
      'thR': (legx(.95), .95, DZ), 'snR': (legx(.6), .6, DZ), 'ftR': (legx(.08), .073, DZ)}
-J.update({'spine1': (0, 1.04, DZ), 'spine2': (0, 1.17, DZ), 'clavR': (.035, 1.50, DZ)})
+J.update({'spine1': (0, 1.04, DZ), 'spine2': (0, 1.17, DZ), 'clavR': (.035, 1.50, DZ), 'neck2': (0, 1.59, DZ)})
+J.update({'upTwR': (.315, 1.467, DZ), 'elbowHR': (.425, 1.467, DZ), 'foTwR': (.56, 1.467, DZ), 'hipHR': (J['thR'][0], .93, DZ - .03), 'kneeHR': (J['snR'][0], .615, DZ + .02), 'toeR': (J['ftR'][0], .02, .10)})
+for k in ('upTw', 'elbowH', 'foTw', 'hipH', 'kneeH', 'toe'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
 for k in ('up', 'fo', 'hand', 'th', 'sn', 'ft', 'clav'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
-B = ['hips', 'torso', 'neck', 'head', 'upR', 'foR', 'handR', 'upL', 'foL', 'handL', 'thR', 'snR', 'ftR', 'thL', 'snL', 'ftL', 'spine1', 'spine2', 'clavR', 'clavL']
+B = ['hips', 'torso', 'neck', 'head', 'upR', 'foR', 'handR', 'upL', 'foL', 'handL', 'thR', 'snR', 'ftR', 'thL', 'snL', 'ftL', 'spine1', 'spine2', 'clavR', 'clavL', 'neck2'] + [n + sd for sd in 'RL' for n in ('upTw', 'elbowH', 'foTw', 'hipH', 'kneeH', 'toe')]
 # dedos de la mano derecha del modelo (vista desde arriba, coordenadas de Blender): eje y por dedo y articulaciones en x
 FING = [(-.022, (.795, .835, .862)), (.012, (.80, .845, .877)), (.043, (.80, .842, .874)), (.074, (.80, .832, .858))]  # índice, medio, anular, meñique
 FZ = 1.47
@@ -58,7 +60,9 @@ for sd, sg in (('R', 1), ('L', -1)):
 # ---- pesos automáticos (Blender, difusión de calor): esqueleto puesto sobre el modelo en pose T ----
 TAIL = {'hips': (0, 1.04, DZ), 'spine1': (0, 1.17, DZ), 'spine2': (0, 1.30, DZ), 'torso': (0, 1.53, DZ), 'neck': (0, 1.65, DZ), 'head': (0, 1.9, DZ)}
 for sd, sg in (('R', 1), ('L', -1)):
-    TAIL['clav' + sd] = J['up' + sd]; TAIL['up' + sd] = J['fo' + sd]; TAIL['fo' + sd] = J['hand' + sd]; TAIL['hand' + sd] = (sg * .785, 1.47, DZ)
+    TAIL['clav' + sd] = J['up' + sd]; TAIL['up' + sd] = J['fo' + sd]; TAIL['fo' + sd] = J['hand' + sd]
+    TAIL['elbowH' + sd] = (sg * .475, 1.467, DZ); TAIL['hipH' + sd] = (J['th' + sd][0], .87, DZ - .07); TAIL['kneeH' + sd] = (J['sn' + sd][0], .55, DZ + .05)
+    TAIL['toe' + sd] = (J['ft' + sd][0], .02, .18); TAIL['hand' + sd] = (sg * .785, 1.47, DZ)
     TAIL['th' + sd] = J['sn' + sd]; TAIL['sn' + sd] = (J['ft' + sd][0], .10, DZ); TAIL['ft' + sd] = (J['ft' + sd][0], .02, .14)
     for f, (fy, xs) in enumerate(FING):
         tips = list(xs[1:]) + [xs[2] + (xs[2] - xs[1]) * 1.2]
@@ -76,7 +80,9 @@ for v in _b.verts: v.co *= 10
 _b.to_mesh(wm); print('bordes abiertos tras soldar', sum(1 for e in _b.edges if e.is_boundary)); _b.free()
 arm = bpy.data.armatures.new('esq'); ao = bpy.data.objects.new('esq', arm); bpy.context.scene.collection.objects.link(ao)
 bpy.context.view_layer.objects.active = ao; bpy.ops.object.mode_set(mode='EDIT')
+NEWB = {'neck2'} | {n + sd for sd in 'RL' for n in ('upTw', 'elbowH', 'foTw', 'hipH', 'kneeH', 'toe')}
 for b in B:
+    if b in NEWB: continue  # ayudantes: sus pesos se reparten después a partir de los del hueso principal
     eb = arm.edit_bones.new(b); eb.head = tob(HEAD[b]); eb.tail = tob(TAIL[b])
     if (eb.tail - eb.head).length < 1e-3: eb.tail = eb.head + __import__('mathutils').Vector((0, 0, .2))
 bpy.ops.object.mode_set(mode='OBJECT')
@@ -129,6 +135,26 @@ for n, (x, y, z) in enumerate(G):
             add('th' + sd, lg * k1); add('sn' + sd, lg * (1 - k1) * f1); add('ft' + sd, lg * (1 - k1) * (1 - f1))
     hw_ = HEAT.get(VIX[n])
     if hw_ and not any(k[0] in 'ft' and k[:2] != 'ft' and k[:2] != 'th' for k in w): w = hw_  # dedos: se quedan los pesos por regiones
+    w = dict(w); g_ = lambda k: w.get(k, 0)
+    def mv(src, dst, f):  # pasa la fracción f del peso de src al ayudante dst
+        v = g_(src) * f
+        if v > 0: w[src] = g_(src) - v; w[dst] = g_(dst) + v
+    sd = 'R' if x > 0 else 'L'; ax = abs(x)
+    # columna: el cálculo de calor deja el abdomen entero al pecho; se reparte cadera → vértebra 1 → vértebra 2 → pecho por altura
+    tt = g_('hips') + g_('spine1') + g_('spine2') + g_('torso')
+    if tt > 0 and .9 < y < 1.45:
+        C_ = [.95, 1.06, 1.18, 1.32]; hw = [max(0, 1 - abs(y - c) / .12) for c in C_]
+        if y <= C_[0]: hw = [1, 0, 0, 0]
+        if y >= C_[-1]: hw = [0, 0, 0, 1]
+        sh_ = sum(hw) or 1
+        for nm_, hv in zip(('hips', 'spine1', 'spine2', 'torso'), hw): w[nm_] = tt * hv / sh_
+    mv('up' + sd, 'upTw' + sd, ss(.25, .40, ax)); mv('fo' + sd, 'foTw' + sd, ss(.50, .64, ax))
+    e = .5 * math.exp(-((ax - .44) / .035) ** 2); mv('upTw' + sd, 'elbowH' + sd, e); mv('up' + sd, 'elbowH' + sd, e); mv('fo' + sd, 'elbowH' + sd, e)
+    e = .5 * math.exp(-((y - .60) / .045) ** 2); mv('th' + sd, 'kneeH' + sd, e); mv('sn' + sd, 'kneeH' + sd, e)
+    e = .55 * math.exp(-((y - .92) / .07) ** 2) * ss(-.01, .06, DZ - z); mv('th' + sd, 'hipH' + sd, e); mv('hips', 'hipH' + sd, e * .6)
+    if y < .07: mv('ft' + sd, 'toe' + sd, ss(.085, .115, z))
+    e = ss(1.58, 1.63, y) * (1 - ss(1.66, 1.71, y)) * .55; mv('neck', 'neck2', e); mv('head', 'neck2', e)
+    w = {k: v for k, v in w.items() if v > 1e-4}
     top = sorted(w.items(), key=lambda kv: -kv[1])[:4]; tot = sum(v for _, v in top) or 1
     ii = [B.index(b) for b, _ in top] + [0] * (4 - len(top)); ww = [round(v / tot * 255) for _, v in top] + [0] * (4 - len(top))
     ww[0] += 255 - sum(ww); IW.append(ii); WW.append(ww)
