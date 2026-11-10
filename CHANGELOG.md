@@ -2,6 +2,10 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.56.1 · Hombros más pegados al cuerpo
+
+- La articulación del hombro del modelo queda 3 cm más hacia adentro: los brazos cuelgan junto al torso en vez de separados.
+
 ## 0.56.0 · Personaje menos rígido: columna, clavículas y pesos suaves
 
 - Columna con dos vértebras más: el giro del pecho se reparte desde la cadera y el tronco se curva en vez de doblarse en un solo punto.
