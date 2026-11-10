@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.56.2 · Caderas más arriba y cuello que gira desde su base
+
+- La articulación de la cadera sube 4 cm: las piernas giran desde donde está la cadera del modelo y no desde el borde del bóxer (muslo y pierna 2 cm más largos, el pie queda en el mismo sitio).
+- El cuello gira desde su base, entre los hombros, y no desde la barbilla.
+
 ## 0.56.1 · Hombros más pegados al cuerpo
 
 - La articulación del hombro del modelo queda 3 cm más hacia adentro: los brazos cuelgan junto al torso en vez de separados.

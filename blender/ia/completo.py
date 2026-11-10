@@ -26,7 +26,7 @@ for h in hs:
     s = L[np.abs(L[:, 1] - h) < .03]; cx.append((s[:, 0].min() + s[:, 0].max()) / 2 if len(s) else .1)
 legx = lambda z: float(np.interp(z, hs, cx))
 DZ = -.03
-J = {'hips': (0, .97, DZ), 'torso': (0, 1.04, DZ), 'neck': (0, 1.58, DZ), 'head': (0, 1.65, DZ),
+J = {'hips': (0, .97, DZ), 'torso': (0, 1.04, DZ), 'neck': (0, 1.53, DZ), 'head': (0, 1.65, DZ),
      'upR': (.19, 1.467, DZ), 'foR': (.44, 1.467, DZ), 'handR': (.68, 1.467, DZ),
      'thR': (legx(.95), .95, DZ), 'snR': (legx(.6), .6, DZ), 'ftR': (legx(.08), .073, DZ)}
 J.update({'spine1': (0, 1.04, DZ), 'spine2': (0, 1.17, DZ), 'clavR': (.035, 1.50, DZ)})
@@ -56,7 +56,7 @@ for sd, sg in (('R', 1), ('L', -1)):
     a1 = math.atan2(sn[0] - th[0], th[1] - sn[1]); a2 = math.atan2(ft[0] - sn[0], sn[1] - ft[1])
     Q['th' + sd] = rotz(-a1); Q['sn' + sd] = rotz(-a2); Q['ft' + sd] = rotz(-a2)  # endereza: gira la pierna abierta hasta la vertical
 # ---- pesos automáticos (Blender, difusión de calor): esqueleto puesto sobre el modelo en pose T ----
-TAIL = {'hips': (0, 1.04, DZ), 'spine1': (0, 1.17, DZ), 'spine2': (0, 1.30, DZ), 'torso': (0, 1.56, DZ), 'neck': (0, 1.65, DZ), 'head': (0, 1.9, DZ)}
+TAIL = {'hips': (0, 1.04, DZ), 'spine1': (0, 1.17, DZ), 'spine2': (0, 1.30, DZ), 'torso': (0, 1.53, DZ), 'neck': (0, 1.65, DZ), 'head': (0, 1.9, DZ)}
 for sd, sg in (('R', 1), ('L', -1)):
     TAIL['clav' + sd] = J['up' + sd]; TAIL['up' + sd] = J['fo' + sd]; TAIL['fo' + sd] = J['hand' + sd]; TAIL['hand' + sd] = (sg * .785, 1.47, DZ)
     TAIL['th' + sd] = J['sn' + sd]; TAIL['sn' + sd] = (J['ft' + sd][0], .10, DZ); TAIL['ft' + sd] = (J['ft' + sd][0], .02, .14)
