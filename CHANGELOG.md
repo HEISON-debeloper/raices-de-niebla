@@ -2,6 +2,13 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.61.0 · Los dedos ya no atraviesan los objetos
+
+- Cada objeto que se sostiene en primera persona se mide como una cápsula (eje y grosor del mango en su propia malla, alrededor del punto de agarre).
+- En cada cuadro cada falange de cada dedo y del pulgar busca el mayor cierre que no entra en esa cápsula: si la pose la metería dentro del mango se abre hasta tocar la superficie, y si quedaría en el aire se cierra hasta tocarla. Los dedos quedan siempre sobre el mango, nunca adentro.
+- Revisada la malla de la mano: las pequeñas rendijas que trae entre los dedos ya no dejan ver a través.
+- Corregido un error raro al ir hacia una nota cuyo lugar no existe.
+
 ## 0.60.0 · Brazos y manos de primera persona con el modelo 3D
 
 - En primera persona se ven el antebrazo, la mano y parte del brazo del modelo, con su textura, en vez de las manos anteriores.
