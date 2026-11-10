@@ -2,6 +2,12 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.63.0 · Ajuste de manos en primera persona
+
+- Botón ✋ en primera persona: abre un panel para girar, mover y escalar la mano sobre sus huesos, cambiar de mano, cerrar más o menos los dedos, mover el punto de agarre, elegir la pose y probar cada objeto, todo en vivo.
+- Los ajustes se guardan en el teléfono; «Copiar ajustes» da un texto para mandarlo y dejarlo fijo en el juego.
+- La palma de las manos de la vista vuelve al lado correcto (en la 0.62.0 agarraban con el dorso).
+
 ## 0.62.0 · Manos nuevas en primera persona
 
 - Los brazos de la vista en primera persona usan el modelo de manos enviado (antebrazo y mano con su textura).

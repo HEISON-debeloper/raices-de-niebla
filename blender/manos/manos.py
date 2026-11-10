@@ -17,7 +17,7 @@ R3 = {1: [[0, 0, 1], [1, 0, 0], [0, 1, 0]], -1: [[0, 0, -1], [-1, 0, 0], [0, 1, 
 B = []; HEADB = {}; TAILB = {}
 def lerp(a, b, t): return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
 SG = {}
-for sd, sg in (('L', 1), ('R', -1)):  # la palma mira hacia −y (las uñas y el triángulo de la muñeca están en +y): la mano de x>0 es la izquierda
+for sd, sg in (('R', 1), ('L', -1)):  # la palma mira hacia +y: las puntas de los dedos se curvan hacia +y (índice: nudillo y −,020 → punta y −,005)
     SG[sd] = sg
     m = lambda p: (sg * p[0], p[1], p[2])
     B += ['fo' + sd, 'hand' + sd]; HEADB['fo' + sd] = m(E); TAILB['fo' + sd] = m(W); HEADB['hand' + sd] = m(W); TAILB['hand' + sd] = m(FING[1][0])
