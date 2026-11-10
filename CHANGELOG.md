@@ -2,6 +2,12 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.58.0 · Cada hueso en su sitio exacto, medido sobre la malla del modelo
+
+- La malla del personaje se midió con cortes cada centímetro y vistas con regla: cadera ,95 m, rodilla ,555 m, tobillo ,115 m, hombro 1,49 m, codo y muñeca, base del cuello 1,57 m y articulación de la cabeza 1,71 m (altura de las orejas).
+- El esqueleto del juego ahora tiene exactamente esas medidas (brazo 24,5 cm, antebrazo 22 cm, muslo 39,5 cm, pierna 44 cm): el modelo ya no se estira para encajar.
+- Los brazos y las piernas tienen la profundidad real del modelo (los brazos van un poco por detrás del pecho) y el pie apoya con la medida real del tobillo al suelo.
+
 ## 0.57.1 · Pies y tobillos sin hinchazón
 
 - El muslo y la pierna del juego medían lo mismo, pero en el modelo la pierna es más larga que el muslo: el tobillo quedaba entre dos estiramientos distintos y se aplastaba, y por eso el pie se veía hinchado. Ahora el esqueleto del juego tiene las proporciones del modelo.

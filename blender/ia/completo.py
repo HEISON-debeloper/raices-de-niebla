@@ -26,11 +26,14 @@ for h in hs:
     s = L[np.abs(L[:, 1] - h) < .03]; cx.append((s[:, 0].min() + s[:, 0].max()) / 2 if len(s) else .1)
 legx = lambda z: float(np.interp(z, hs, cx))
 DZ = -.03
-J = {'hips': (0, .97, DZ), 'torso': (0, 1.04, DZ), 'neck': (0, 1.53, DZ), 'head': (0, 1.65, DZ),
-     'upR': (.19, 1.467, DZ), 'foR': (.44, 1.467, DZ), 'handR': (.68, 1.467, DZ),
-     'thR': (legx(.95), .95, DZ), 'snR': (legx(.6), .6, DZ), 'ftR': (legx(.08), .073, DZ)}
-J.update({'spine1': (0, 1.04, DZ), 'spine2': (0, 1.17, DZ), 'clavR': (.035, 1.50, DZ), 'neck2': (0, 1.59, DZ)})
-J.update({'upTwR': (.315, 1.467, DZ), 'elbowHR': (.425, 1.467, DZ), 'foTwR': (.56, 1.467, DZ), 'hipHR': (J['thR'][0], .93, DZ - .03), 'kneeHR': (J['snR'][0], .615, DZ + .02), 'toeR': (J['ftR'][0], .02, .10)})
+# articulaciones medidas sobre la malla (anatomia.py: cortes cada 1 cm + vistas con rejilla métrica). Coordenadas del juego:
+# x = derecha, y = altura (suelo 0), z = frente (+). Cadena de cada brazo y pierna en una sola profundidad para que no quede quebrada.
+ZA, ZL = -.075, -.05   # profundidad del eje del brazo (va por detrás del centro del tronco) y de la pierna
+J = {'hips': (0, .95, -.03), 'torso': (0, 1.03, -.03), 'neck': (0, 1.57, -.02), 'head': (0, 1.71, -.04),
+     'upR': (.195, 1.49, ZA), 'foR': (.44, 1.49, ZA), 'handR': (.66, 1.485, ZA),
+     'thR': (.095, .95, ZL), 'snR': (legx(.555), .555, ZL), 'ftR': (legx(.115), .115, ZL)}
+J.update({'spine1': (0, 1.06, -.05), 'spine2': (0, 1.18, -.06), 'clavR': (.025, 1.545, .03), 'neck2': (0, 1.64, -.02)})
+J.update({'upTwR': (.32, 1.49, ZA), 'elbowHR': (.425, 1.49, ZA), 'foTwR': (.55, 1.488, ZA), 'hipHR': (.095, .93, ZL - .03), 'kneeHR': (legx(.57), .57, ZL + .02), 'toeR': (legx(.03), .025, .08)})
 for k in ('upTw', 'elbowH', 'foTw', 'hipH', 'kneeH', 'toe'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
 for k in ('up', 'fo', 'hand', 'th', 'sn', 'ft', 'clav'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
 B = ['hips', 'torso', 'neck', 'head', 'upR', 'foR', 'handR', 'upL', 'foL', 'handL', 'thR', 'snR', 'ftR', 'thL', 'snL', 'ftL', 'spine1', 'spine2', 'clavR', 'clavL', 'neck2'] + [n + sd for sd in 'RL' for n in ('upTw', 'elbowH', 'foTw', 'hipH', 'kneeH', 'toe')]
@@ -58,19 +61,19 @@ for sd, sg in (('R', 1), ('L', -1)):
     a1 = math.atan2(sn[0] - th[0], th[1] - sn[1]); a2 = math.atan2(ft[0] - sn[0], sn[1] - ft[1])
     Q['th' + sd] = rotz(-a1); Q['sn' + sd] = rotz(-a2); Q['ft' + sd] = rotz(-a2)  # endereza: gira la pierna abierta hasta la vertical
 # ---- pesos automáticos (Blender, difusión de calor): esqueleto puesto sobre el modelo en pose T ----
-TAIL = {'hips': (0, 1.04, DZ), 'spine1': (0, 1.17, DZ), 'spine2': (0, 1.30, DZ), 'torso': (0, 1.53, DZ), 'neck': (0, 1.65, DZ), 'head': (0, 1.9, DZ)}
+TAIL = {'hips': (0, 1.06, -.05), 'spine1': (0, 1.18, -.06), 'spine2': (0, 1.32, -.05), 'torso': (0, 1.57, -.02), 'neck': (0, 1.71, -.04), 'head': (0, 1.9, -.02)}
 for sd, sg in (('R', 1), ('L', -1)):
     TAIL['clav' + sd] = J['up' + sd]; TAIL['up' + sd] = J['fo' + sd]; TAIL['fo' + sd] = J['hand' + sd]
-    TAIL['elbowH' + sd] = (sg * .475, 1.467, DZ); TAIL['hipH' + sd] = (J['th' + sd][0], .87, DZ - .07); TAIL['kneeH' + sd] = (J['sn' + sd][0], .55, DZ + .05)
-    TAIL['toe' + sd] = (J['ft' + sd][0], .02, .18); TAIL['hand' + sd] = (sg * .785, 1.47, DZ)
-    TAIL['th' + sd] = J['sn' + sd]; TAIL['sn' + sd] = (J['ft' + sd][0], .10, DZ); TAIL['ft' + sd] = (J['ft' + sd][0], .02, .14)
+    TAIL['elbowH' + sd] = (sg * .475, 1.49, ZA); TAIL['hipH' + sd] = (J['th' + sd][0], .87, ZL - .09); TAIL['kneeH' + sd] = (J['sn' + sd][0], .53, ZL + .06)
+    TAIL['toe' + sd] = (J['ft' + sd][0], .02, .175); TAIL['hand' + sd] = (sg * .785, 1.475, ZA)
+    TAIL['th' + sd] = J['sn' + sd]; TAIL['sn' + sd] = J['ft' + sd]; TAIL['ft' + sd] = J['toe' + sd]
     for f, (fy, xs) in enumerate(FING):
         tips = list(xs[1:]) + [xs[2] + (xs[2] - xs[1]) * 1.2]
         for k in range(3): TAIL['f%s%d_%d' % (sd, f, k)] = (sg * tips[k], FZ, -fy)
     for k in range(3):
         q = TH0 + (TH1 - TH0) * (THJ[k + 1] if k < 2 else 1.0); TAIL['t%s_%d' % (sd, k)] = (sg * q[0], FZ - .008, -q[1])
 HEAD = dict(J); HEAD.update(FJ); HEAD['sn' + 'R'] = J['snR']; 
-for sd in 'RL': HEAD['ft' + sd] = (J['ft' + sd][0], .10, DZ)
+
 tob = lambda g: (g[0] * 10, -g[2] * 10, g[1] * 10)  # juego → Blender, ×10: el cálculo de calor falla con modelos de 2 m
 # copia soldada (el modelo viene partido por las costuras de la textura y así el cálculo de calor falla), ×10 de escala
 import bmesh as _bm
@@ -150,10 +153,10 @@ for n, (x, y, z) in enumerate(G):
         for nm_, hv in zip(('hips', 'spine1', 'spine2', 'torso'), hw): w[nm_] = tt * hv / sh_
     mv('up' + sd, 'upTw' + sd, ss(.25, .40, ax)); mv('fo' + sd, 'foTw' + sd, ss(.50, .64, ax))
     e = .5 * math.exp(-((ax - .44) / .035) ** 2); mv('upTw' + sd, 'elbowH' + sd, e); mv('up' + sd, 'elbowH' + sd, e); mv('fo' + sd, 'elbowH' + sd, e)
-    e = .5 * math.exp(-((y - .60) / .045) ** 2); mv('th' + sd, 'kneeH' + sd, e); mv('sn' + sd, 'kneeH' + sd, e)
-    e = .55 * math.exp(-((y - .92) / .07) ** 2) * ss(-.01, .06, DZ - z); mv('th' + sd, 'hipH' + sd, e); mv('hips', 'hipH' + sd, e * .6)
-    if y < .07: mv('ft' + sd, 'toe' + sd, ss(.085, .115, z))
-    e = ss(1.58, 1.63, y) * (1 - ss(1.66, 1.71, y)) * .55; mv('neck', 'neck2', e); mv('head', 'neck2', e)
+    e = .5 * math.exp(-((y - .555) / .045) ** 2); mv('th' + sd, 'kneeH' + sd, e); mv('sn' + sd, 'kneeH' + sd, e)
+    e = .55 * math.exp(-((y - .92) / .07) ** 2) * ss(-.01, .06, -.03 - z); mv('th' + sd, 'hipH' + sd, e); mv('hips', 'hipH' + sd, e * .6)
+    if y < .07: mv('ft' + sd, 'toe' + sd, ss(.065, .095, z))
+    e = ss(1.59, 1.63, y) * (1 - ss(1.67, 1.72, y)) * .55; mv('neck', 'neck2', e); mv('head', 'neck2', e)
     w = {k: v for k, v in w.items() if v > 1e-4}
     top = sorted(w.items(), key=lambda kv: -kv[1])[:4]; tot = sum(v for _, v in top) or 1
     ii = [B.index(b) for b, _ in top] + [0] * (4 - len(top)); ww = [round(v / tot * 255) for _, v in top] + [0] * (4 - len(top))
