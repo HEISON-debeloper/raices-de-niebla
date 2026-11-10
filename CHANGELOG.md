@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.60.0 · Brazos y manos de primera persona con el modelo 3D
+
+- En primera persona se ven el antebrazo, la mano y parte del brazo del modelo, con su textura, en vez de las manos anteriores.
+- Tienen huesos que siguen a la vista: hombro, codo, muñeca y las tres falanges de cada dedo y del pulgar, así que agarran, apuntan y sostienen las herramientas igual que antes.
+
 ## 0.59.0 · Cada movimiento con su propia reacción
 
 - Nueva capa de reacciones: cada parte del cuerpo tiene inercia y rebote. Al arrancar el tronco se queda atrás, al frenar sigue de largo y vuelve; al girar los hombros se retrasan y los brazos se abren hacia afuera.
