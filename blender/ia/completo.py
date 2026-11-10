@@ -28,7 +28,7 @@ legx = lambda z: float(np.interp(z, hs, cx))
 DZ = -.03
 J = {'hips': (0, .97, DZ), 'torso': (0, 1.04, DZ), 'neck': (0, 1.58, DZ), 'head': (0, 1.65, DZ),
      'upR': (.19, 1.467, DZ), 'foR': (.44, 1.467, DZ), 'handR': (.68, 1.467, DZ),
-     'thR': (legx(.95), .95, DZ), 'snR': (legx(.6), .6, DZ), 'ftR': (legx(.08), .07, DZ)}
+     'thR': (legx(.95), .95, DZ), 'snR': (legx(.6), .6, DZ), 'ftR': (legx(.08), .073, DZ)}
 for k in ('up', 'fo', 'hand', 'th', 'sn', 'ft'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
 B = ['hips', 'torso', 'neck', 'head', 'upR', 'foR', 'handR', 'upL', 'foL', 'handL', 'thR', 'snR', 'ftR', 'thL', 'snL', 'ftL']
 def ss(a, b, x): t = min(1, max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t)
@@ -39,7 +39,7 @@ for sd, sg in (('R', 1), ('L', -1)):
     for b in ('up', 'fo', 'hand'): Q[b + sd] = rotz(-sg * math.pi / 2)
     th, sn, ft = J['th' + sd], J['sn' + sd], J['ft' + sd]
     a1 = math.atan2(sn[0] - th[0], th[1] - sn[1]); a2 = math.atan2(ft[0] - sn[0], sn[1] - ft[1])
-    Q['th' + sd] = rotz(a1); Q['sn' + sd] = rotz(a2); Q['ft' + sd] = rotz(a2)
+    Q['th' + sd] = rotz(-a1); Q['sn' + sd] = rotz(-a2); Q['ft' + sd] = rotz(-a2)  # endereza: gira la pierna abierta hasta la vertical
 IW = []; WW = []
 for (x, y, z) in G:
     w = {}

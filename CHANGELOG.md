@@ -2,6 +2,10 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.54.1 · Pies y piernas acomodados
+
+- Las piernas del modelo venían abiertas en compás y el giro que las enderezaba iba al revés: ahora quedan rectas, con los pies debajo de las rodillas y apoyados en el suelo.
+
 ## 0.54.0 · Personaje completo, tal cual el modelo de la app 3D
 
 - El personaje es ahora el modelo 3D enviado, sin cortar ni rehacer en low-poly: una sola malla lisa con su textura original (cara, pelo, piel, bóxer, manos y pies del modelo).
