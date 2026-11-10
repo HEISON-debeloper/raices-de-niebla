@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.64.0 · Ríos más hondos
+
+- El lecho de los ríos es mucho más hondo: al menos 2,2 m en el centro y hasta 7 m en los grandes (antes desde 0,6 m), con el fondo más ancho y parejo.
+- Medido en el mundo de prueba con el terreno real: la mitad de los puntos del centro de los ríos tiene ahora 1,5 m o más de agua (antes 0,4 m) y en el 62 % ya se nada (antes en el 3 %).
+
 ## 0.63.0 · Ajuste de manos en primera persona
 
 - Botón ✋ en primera persona: abre un panel para girar, mover y escalar la mano sobre sus huesos, cambiar de mano, cerrar más o menos los dedos, mover el punto de agarre, elegir la pose y probar cada objeto, todo en vivo.
