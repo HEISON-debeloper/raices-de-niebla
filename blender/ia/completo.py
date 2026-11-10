@@ -11,11 +11,11 @@ d = o.modifiers.new('d', 'DECIMATE'); d.ratio = TRI / len(o.data.polygons); bpy.
 me = o.data; me.calc_loop_triangles()
 # vértices por esquina (posición + uv + normal suave); se unen los que comparten las tres cosas
 uvl = me.uv_layers.active.data; vn = np.array([v.normal[:] for v in me.vertices]); vp = np.array([v.co[:] for v in me.vertices])
-key = {}; P = []; N = []; UV = []; IDX = []
+key = {}; P = []; N = []; UV = []; IDX = []; VIX = []
 for t in me.loop_triangles:
     for li, vi in zip(t.loops, t.vertices):
         u = uvl[li].uv; k = (vi, round(u[0], 5), round(u[1], 5))
-        if k not in key: key[k] = len(P); P.append(vp[vi]); N.append(vn[vi]); UV.append((u[0], u[1]))
+        if k not in key: key[k] = len(P); P.append(vp[vi]); N.append(vn[vi]); UV.append((u[0], u[1])); VIX.append(vi)
         IDX.append(key[k])
 P = np.array(P); N = np.array(N); UV = np.array(UV); print('triángulos', len(IDX) // 3, 'vértices', len(P))
 # blender (x, y, z) → juego (x, z, -y)
@@ -29,8 +29,9 @@ DZ = -.03
 J = {'hips': (0, .97, DZ), 'torso': (0, 1.04, DZ), 'neck': (0, 1.58, DZ), 'head': (0, 1.65, DZ),
      'upR': (.19, 1.467, DZ), 'foR': (.44, 1.467, DZ), 'handR': (.68, 1.467, DZ),
      'thR': (legx(.95), .95, DZ), 'snR': (legx(.6), .6, DZ), 'ftR': (legx(.08), .073, DZ)}
-for k in ('up', 'fo', 'hand', 'th', 'sn', 'ft'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
-B = ['hips', 'torso', 'neck', 'head', 'upR', 'foR', 'handR', 'upL', 'foL', 'handL', 'thR', 'snR', 'ftR', 'thL', 'snL', 'ftL']
+J.update({'spine1': (0, 1.04, DZ), 'spine2': (0, 1.17, DZ), 'clavR': (.035, 1.50, DZ)})
+for k in ('up', 'fo', 'hand', 'th', 'sn', 'ft', 'clav'): x, y, z = J[k + 'R']; J[k + 'L'] = (-x, y, z)
+B = ['hips', 'torso', 'neck', 'head', 'upR', 'foR', 'handR', 'upL', 'foL', 'handL', 'thR', 'snR', 'ftR', 'thL', 'snL', 'ftL', 'spine1', 'spine2', 'clavR', 'clavL']
 # dedos de la mano derecha del modelo (vista desde arriba, coordenadas de Blender): eje y por dedo y articulaciones en x
 FING = [(-.022, (.795, .835, .862)), (.012, (.80, .845, .877)), (.043, (.80, .842, .874)), (.074, (.80, .832, .858))]  # índice, medio, anular, meñique
 FZ = 1.47
@@ -54,8 +55,46 @@ for sd, sg in (('R', 1), ('L', -1)):
     th, sn, ft = J['th' + sd], J['sn' + sd], J['ft' + sd]
     a1 = math.atan2(sn[0] - th[0], th[1] - sn[1]); a2 = math.atan2(ft[0] - sn[0], sn[1] - ft[1])
     Q['th' + sd] = rotz(-a1); Q['sn' + sd] = rotz(-a2); Q['ft' + sd] = rotz(-a2)  # endereza: gira la pierna abierta hasta la vertical
+# ---- pesos automáticos (Blender, difusión de calor): esqueleto puesto sobre el modelo en pose T ----
+TAIL = {'hips': (0, 1.04, DZ), 'spine1': (0, 1.17, DZ), 'spine2': (0, 1.30, DZ), 'torso': (0, 1.56, DZ), 'neck': (0, 1.65, DZ), 'head': (0, 1.9, DZ)}
+for sd, sg in (('R', 1), ('L', -1)):
+    TAIL['clav' + sd] = J['up' + sd]; TAIL['up' + sd] = J['fo' + sd]; TAIL['fo' + sd] = J['hand' + sd]; TAIL['hand' + sd] = (sg * .785, 1.47, DZ)
+    TAIL['th' + sd] = J['sn' + sd]; TAIL['sn' + sd] = (J['ft' + sd][0], .10, DZ); TAIL['ft' + sd] = (J['ft' + sd][0], .02, .14)
+    for f, (fy, xs) in enumerate(FING):
+        tips = list(xs[1:]) + [xs[2] + (xs[2] - xs[1]) * 1.2]
+        for k in range(3): TAIL['f%s%d_%d' % (sd, f, k)] = (sg * tips[k], FZ, -fy)
+    for k in range(3):
+        q = TH0 + (TH1 - TH0) * (THJ[k + 1] if k < 2 else 1.0); TAIL['t%s_%d' % (sd, k)] = (sg * q[0], FZ - .008, -q[1])
+HEAD = dict(J); HEAD.update(FJ); HEAD['sn' + 'R'] = J['snR']; 
+for sd in 'RL': HEAD['ft' + sd] = (J['ft' + sd][0], .10, DZ)
+tob = lambda g: (g[0] * 10, -g[2] * 10, g[1] * 10)  # juego → Blender, ×10: el cálculo de calor falla con modelos de 2 m
+# copia soldada (el modelo viene partido por las costuras de la textura y así el cálculo de calor falla), ×10 de escala
+import bmesh as _bm
+wm = me.copy(); wo = bpy.data.objects.new('peso', wm); bpy.context.scene.collection.objects.link(wo)
+_b = _bm.new(); _b.from_mesh(wm); _bm.ops.remove_doubles(_b, verts=_b.verts[:], dist=.0004)
+for v in _b.verts: v.co *= 10
+_b.to_mesh(wm); print('bordes abiertos tras soldar', sum(1 for e in _b.edges if e.is_boundary)); _b.free()
+arm = bpy.data.armatures.new('esq'); ao = bpy.data.objects.new('esq', arm); bpy.context.scene.collection.objects.link(ao)
+bpy.context.view_layer.objects.active = ao; bpy.ops.object.mode_set(mode='EDIT')
+for b in B:
+    eb = arm.edit_bones.new(b); eb.head = tob(HEAD[b]); eb.tail = tob(TAIL[b])
+    if (eb.tail - eb.head).length < 1e-3: eb.tail = eb.head + __import__('mathutils').Vector((0, 0, .2))
+bpy.ops.object.mode_set(mode='OBJECT')
+for x in bpy.data.objects: x.select_set(False)
+wo.select_set(True); ao.select_set(True); bpy.context.view_layer.objects.active = ao
+bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+gi = {g.index: g.name for g in wo.vertex_groups}
+from mathutils.kdtree import KDTree
+kd = KDTree(len(wm.vertices))
+for v in wm.vertices: kd.insert(v.co, v.index)
+kd.balance(); HW = [{gi[g.group]: g.weight for g in v.groups if g.weight > .01 and gi.get(g.group) in B} for v in wm.vertices]
+HEAT = {}
+for v in me.vertices:
+    _, j, _ = kd.find(v.co * 10)
+    if HW[j]: HEAT[v.index] = HW[j]
+print('pesos automáticos en', len(HEAT), 'de', len(me.vertices), 'vértices')
 IW = []; WW = []
-for (x, y, z) in G:
+for n, (x, y, z) in enumerate(G):
     w = {}
     def add(b, v):
         if v > 0: w[b] = w.get(b, 0) + v
@@ -88,7 +127,9 @@ for (x, y, z) in G:
             add('hips', rb * hp); lg = rb * (1 - hp)
             k1 = ss(.57, .64, y); f1 = ss(.07, .13, y)
             add('th' + sd, lg * k1); add('sn' + sd, lg * (1 - k1) * f1); add('ft' + sd, lg * (1 - k1) * (1 - f1))
-    top = sorted(w.items(), key=lambda kv: -kv[1])[:2]; tot = sum(v for _, v in top) or 1
+    hw_ = HEAT.get(VIX[n])
+    if hw_ and not any(k[0] in 'ft' and k[:2] != 'ft' and k[:2] != 'th' for k in w): w = hw_  # dedos: se quedan los pesos por regiones
+    top = sorted(w.items(), key=lambda kv: -kv[1])[:4]; tot = sum(v for _, v in top) or 1
     ii = [B.index(b) for b, _ in top] + [0] * (4 - len(top)); ww = [round(v / tot * 255) for _, v in top] + [0] * (4 - len(top))
     ww[0] += 255 - sum(ww); IW.append(ii); WW.append(ww)
 enc = lambda a: base64.b64encode(np.ascontiguousarray(a).tobytes()).decode()

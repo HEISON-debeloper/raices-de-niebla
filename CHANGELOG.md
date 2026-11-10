@@ -2,6 +2,12 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.56.0 · Personaje menos rígido: columna, clavículas y pesos suaves
+
+- Columna con dos vértebras más: el giro del pecho se reparte desde la cadera y el tronco se curva en vez de doblarse en un solo punto.
+- Clavículas: el hombro acompaña al brazo cuando sube o se balancea.
+- Los pesos de la piel se calculan con el sistema automático de Blender (difusión de calor) sobre el modelo, con transiciones suaves en hombros, codos, cadera, rodillas y cuello.
+
 ## 0.55.0 · Manos y dedos del personaje con huesos
 
 - Cada dedo del modelo tiene 3 falanges (y el pulgar también) que copian el movimiento de la mano del juego: agarra el mango de las herramientas, cierra el puño al golpear y abre la mano igual que antes.
