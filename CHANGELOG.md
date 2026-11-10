@@ -2,6 +2,11 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.54.0 · Personaje completo, tal cual el modelo de la app 3D
+
+- El personaje es ahora el modelo 3D enviado, sin cortar ni rehacer en low-poly: una sola malla lisa con su textura original (cara, pelo, piel, bóxer, manos y pies del modelo).
+- Tiene huesos que siguen las articulaciones del juego, así camina, corre, nada y usa herramientas con la animación de siempre.
+
 ## 0.53.1 · Antebrazos nuevos, del modelo de la app 3D
 
 - Los antebrazos toman las medidas del modelo 3D: más anchos y musculosos cerca del codo y finos en la muñeca, para empalmar con el brazo nuevo. La mano y los dedos se mueven igual que antes.
