@@ -2,6 +2,13 @@
 
 Generado desde la constante `CHANGELOG` del juego con `tools/desde-artefacto.py`.
 
+## 0.59.0 · Cada movimiento con su propia reacción
+
+- Nueva capa de reacciones: cada parte del cuerpo tiene inercia y rebote. Al arrancar el tronco se queda atrás, al frenar sigue de largo y vuelve; al girar los hombros se retrasan y los brazos se abren hacia afuera.
+- Cada pisada sacude un poco el cuerpo (más al correr); al saltar se arquea y sube los brazos; al aterrizar se flexiona según la altura de la caída, de un rebote leve a una sentadilla con cabeceo.
+- Golpe recibido: se encoge y gira hacia un lado. Hachazo: los brazos y el tronco vibran en el impacto. Martillazo, frenada en seco y entrar al agua tienen su propio gesto.
+- Quieto un rato hace gestos: se estira, mueve los hombros, se mira la mano, gira el cuello, se rasca la cabeza o se balancea de un pie al otro.
+
 ## 0.58.0 · Cada hueso en su sitio exacto, medido sobre la malla del modelo
 
 - La malla del personaje se midió con cortes cada centímetro y vistas con regla: cadera ,95 m, rodilla ,555 m, tobillo ,115 m, hombro 1,49 m, codo y muñeca, base del cuello 1,57 m y articulación de la cabeza 1,71 m (altura de las orejas).
