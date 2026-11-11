@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Raíces de Niebla — Suelo vóxel v0.13.1</title>
+<title>Raíces de Niebla — Suelo vóxel v0.14</title>
 <style>
 html,body{margin:0;height:100%;overflow:hidden;background:#aec3d1;font:12px system-ui,-apple-system,sans-serif;color:#eee;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 canvas{display:block;touch-action:none}
@@ -37,10 +37,10 @@ h3{margin:0 0 6px;font-size:14px;color:#d9a227}
  <button class="b" id="camB">3ª persona</button>
  <button class="b" id="menuB">Menú</button>
  <div id="more">
-  <div class="grp" id="sty"><button class="b on" data-s="1">Suave</button><button class="b" data-s="0">Cubos</button></div>
+  <div class="grp" id="detG"><button class="b on" data-d="alto">Detalle alto</button><button class="b" data-d="medio">Medio</button><button class="b" data-d="bajo">Bajo</button></div>
   <button class="b" id="cutB">Corte: no</button>
-  <label class="b" id="cutL" style="display:none">Corte <input id="cut" type="range" min="8" max="184" value="96"></label>
-  <label class="b">Pincel <input id="rad" type="range" min="1" max="6" step=".5" value="2.5"><span id="radV"></span></label>
+  <label class="b" id="cutL" style="display:none">Corte <input id="cut" type="range" min="-4" max="4" step=".1" value="1"></label>
+  <label class="b">Pincel <input id="rad" type="range" min=".02" max="1.5" step=".01" value=".3"><span id="radV"></span></label>
   <button class="b" id="legB">Capas y novedades</button>
   <button class="b" id="seedB">Nuevo terreno</button>
   <button class="b" id="spawnB">Reaparecer</button>
@@ -56,17 +56,17 @@ h3{margin:0 0 6px;font-size:14px;color:#d9a227}
 <div id="joy"><div id="knob"></div></div>
 <div id="hint">Toca y arrastra aquí para caminar</div>
 <button class="b act" id="runB">Correr</button><button class="b act" id="jumpB">Saltar</button>
-<div id="ver">Suelo vóxel v0.13.1 · <span id="fps">–</span> FPS</div>
+<div id="ver">Suelo vóxel v0.14 · <span id="fps">–</span></div>
 <div id="load">Generando suelo y personaje…</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 "use strict";
-/* ===== Mundo: 1 vóxel = 25 cm. 192×192×80 vóxeles = 48 × 48 × 20 m ===== */
-const VS=.25,NX=192,NZ=192,NY=80,C=32,CX=NX/C,CZ=NZ/C,CY=Math.ceil(NY/C),SY=NX*NZ,WL=5.1,DS=40;
-const D=new Int8Array(NX*NY*NZ),M=new Uint8Array(NX*NY*NZ),H=new Float32Array(NX*NZ);
+/* ===== TERRENO CONTINUO: el suelo es una función (relieve + horizontes) más la lista de lo que se excava o rellena.
+   Se dibuja por anillos de detalle alrededor del jugador: 1 cm hasta 2 m, 4 cm hasta 8 m, 16 cm hasta 32 m y 64 cm hasta 128 m. ===== */
+const WL=5.1;
 const MAT=[
  {n:'Aire (excavado)',c:0x000000,f:1,k:0},
- {n:'O — Hojarasca / mantillo',c:0x4a3a22,f:9,k:.35,d:'Restos de hojas y raíces en descomposición. En la realidad mide 2–10 cm; aquí ocupa 1 vóxel (25 cm), el mínimo posible.'},
+ {n:'O — Hojarasca / mantillo',c:0x4a3a22,f:9,k:.35,d:'Restos de hojas y raíces en descomposición, 2–8 cm (cerca del jugador se ve con su grosor real gracias a los vóxeles de 1 cm).'},
  {n:'A — Suelo superficial negro',c:0x2b2018,f:6,k:.25,d:'Mineral mezclado con mucha materia orgánica. Negro por el humus, típico de los Andisoles (suelos de ceniza volcánica) andinos. 20–80 cm. Aquí viven casi todas las raíces.'},
  {n:'Tefra — Ceniza volcánica enterrada',c:0xb9ae96,f:11,k:.15,d:'Capa clara de ceniza de una erupción antigua, sepultada por el suelo posterior. Aparece en parches.'},
  {n:'E — Horizonte eluvial (lavado)',c:0x9a8e79,f:6,k:.2,d:'El agua que baja le quita arcilla, hierro y humus; por eso es más claro. Solo en parches.'},
@@ -77,37 +77,86 @@ const MAT=[
  {n:'Grava aluvial',c:0x7e7365,f:14,k:.5,d:'Cantos rodados bajo la arena del río.'}];
 const MC=new Float32Array(MAT.length*3);MAT.forEach((m,i)=>{const c=new THREE.Color(m.c);MC[i*3]=c.r;MC[i*3+1]=c.g;MC[i*3+2]=c.b});
 const cl=(v,a,b)=>v<a?a:v>b?b:v;
-/* ===== Ruido ===== */
 let SEED=1;
 function h2(x,z){let h=Math.imul(x,374761393)^Math.imul(z,668265263)^Math.imul(SEED,1442695041);h=Math.imul(h^h>>>13,1274126177);return((h^h>>>16)>>>0)/4294967296}
 function vn2(x,z){const ix=Math.floor(x),iz=Math.floor(z);let fx=x-ix,fz=z-iz;fx=fx*fx*(3-2*fx);fz=fz*fz*(3-2*fz);const a=h2(ix,iz),b=h2(ix+1,iz),c=h2(ix,iz+1),d=h2(ix+1,iz+1);return a+(b-a)*fx+(c-a)*fz+(a-b-c+d)*fx*fz}
 function fbm(x,z,o){let s=0,a=.5,t=0;for(let i=0;i<o;i++){s+=a*vn2(x,z);t+=a;x*=2.03;z*=2.03;a*=.5}return s/t}
-function hAt(x,z){let h=3.5+12*Math.pow(fbm(x/16,z/16,5),1.4);const dv=x-(24+6*Math.sin(z/9+SEED));h-=4.5*Math.exp(-dv*dv/22);return cl(h,1.5,NY*VS-2)}
-/* ===== Perfil (catena: suelo profundo en zonas planas/bajas, delgado en pendientes) ===== */
-function gen(){
- for(let z=0;z<NZ;z++)for(let x=0;x<NX;x++)H[x+z*NX]=hAt((x+.5)*VS,(z+.5)*VS);
- const L=[];
- for(let z=0;z<NZ;z++)for(let x=0;x<NX;x++){
-  const h=H[x+z*NX],X=x*VS,Z=z*VS;
-  const gx=(H[Math.min(x+1,NX-1)+z*NX]-H[Math.max(x-1,0)+z*NX])/(2*VS),gz=(H[x+Math.min(z+1,NZ-1)*NX]-H[x+Math.max(z-1,0)*NX])/(2*VS);
-  const sl=Math.hypot(gx,gz),n2=fbm(X/6+50,Z/6,3),f=cl(1.2-sl,0,1.1)*(.8+.4*n2);L.length=0;
-  if(h<WL+.6)L.push(8,.5+.3*n2,9,.5);
-  else{if(f>.3)L.push(1,.25);L.push(2,.75*f);
-   if(f>.35&&fbm(X/8+9,Z/8+3,2)>.55)L.push(3,.3);
-   if(f>.4&&fbm(X/7+21,Z/7+40,2)>.58)L.push(4,.3*f);
-   L.push(5,1.3*f)}
-  L.push(6,1.4*f+.5+.9*fbm(X/5+70,Z/5+11,3));
-  for(let y=0;y<NY;y++){const i=x+z*NX+y*SY,dep=h-(y+.5)*VS;D[i]=cl(Math.round(dep/VS*DS),-127,127);
-   if(dep<=0){M[i]=0;continue}let a=0,m=7;for(let k=0;k<L.length;k+=2){a+=L[k+1];if(dep<a){m=L[k];break}}M[i]=m}
- }
-}
-let cutOn=false,cutX=96,smooth=true;
-function den(x,y,z){if(x<0||z<0||y<0||x>=NX||z>=NZ||y>=NY||(cutOn&&x>=cutX))return -127;return D[x+z*NX+y*SY]}
-/* densidad continua (trilineal) en metros: >0 = sólido. Coincide con la superficie suave */
-function dAt(px,py,pz){const u=px/VS-.5,v=py/VS-.5,w=pz/VS-.5,x=Math.floor(u),y=Math.floor(v),z=Math.floor(w),fx=u-x,fy=v-y,fz=w-z;
- const a=den(x,y,z)+(den(x+1,y,z)-den(x,y,z))*fx,b=den(x,y+1,z)+(den(x+1,y+1,z)-den(x,y+1,z))*fx,c=den(x,y,z+1)+(den(x+1,y,z+1)-den(x,y,z+1))*fx,d=den(x,y+1,z+1)+(den(x+1,y+1,z+1)-den(x,y+1,z+1))*fx;
- const e=a+(b-a)*fy,f=c+(d-c)*fy;return e+(f-e)*fz}
-const solid=(x,y,z)=>dAt(x,y,z)>0;
+/* relieve: lomas + un río; detalle fino de 1–5 cm para que el vóxel de 1 cm tenga algo que mostrar */
+function hAt(x,z){let h=3.5+12*Math.pow(fbm(x/16,z/16,5),1.4);const dv=x-(24+6*Math.sin(z/9+SEED));h-=4.5*Math.exp(-dv*dv/22);return h+.012*(vn2(x*9.1,z*9.1)-.5)+.006*(vn2(x*31,z*31)-.5)}
+/* horizontes de la columna (catena: más profundo en lo plano y bajo, delgado en pendientes) */
+const LCACHE=new Map();
+function layersAt(X,Z,h,qs){qs=qs||.05;const qx=Math.round(X/qs),qz=Math.round(Z/qs),key=(qx*1000003+qz)*8+Math.round(Math.log2(qs/.05)+2);X=qx*qs;Z=qz*qs;let L=LCACHE.get(key);if(L)return L;
+ const e=.25,sl=Math.hypot(hAt(X+e,Z)-hAt(X-e,Z),hAt(X,Z+e)-hAt(X,Z-e))/(2*e),n2=fbm(X/6+50,Z/6,3),f=cl(1.2-sl,0,1.1)*(.8+.4*n2);L=[];
+ if(h<WL+.6)L.push(8,.5+.3*n2,9,.5);
+ else{if(f>.25)L.push(1,.02+.06*f*fbm(X*2+5,Z*2,2));L.push(2,.75*f);
+  if(f>.35&&fbm(X/8+9,Z/8+3,2)>.55)L.push(3,.3);
+  if(f>.4&&fbm(X/7+21,Z/7+40,2)>.58)L.push(4,.3*f);
+  L.push(5,1.3*f)}
+ L.push(6,1.4*f+.5+.9*fbm(X/5+70,Z/5+11,3));if(LCACHE.size>300000)LCACHE.clear();LCACHE.set(key,L);return L}
+function natMat(x,y,z,h,qs){const dep=h-y;if(dep<=0)return 0;const L=layersAt(x,z,h,qs);let a=0;for(let k=0;k<L.length;k+=2){a+=L[k+1];if(dep<a)return L[k]}return 7}
+let EDITS=[],cutOn=false,cutX=24;
+/* densidad en metros (>0 sólido) */
+function dens(x,y,z,h,E){let d=(h===undefined?hAt(x,z):h)-y;const L=E||EDITS;for(let i=0;i<L.length;i++){const e=L[i],dx=x-e.x,dy=y-e.y,dz=z-e.z;if(dx>e.r||dx<-e.r||dz>e.r||dz<-e.r||dy>e.r||dy<-e.r)continue;const q=Math.sqrt(dx*dx+dy*dy+dz*dz)-e.r;d=e.t?Math.max(d,-q):Math.min(d,q)}if(cutOn&&x>cutX)d=Math.min(d,cutX-x);return d}
+const solid=(x,y,z)=>dens(x,y,z)>0;
+function matAt(x,y,z,h,qs){for(let i=EDITS.length-1;i>=0;i--){const e=EDITS[i];if((x-e.x)**2+(y-e.y)**2+(z-e.z)**2<e.r*e.r)return e.t?e.m:0}return natMat(x,y,z,h===undefined?hAt(x,z):h,qs)}
+/* ===== baldosas por anillo ===== */
+const DET={alto:1,medio:2,bajo:4};let DETAIL='alto';const RINGS=[{c:.01,R:2},{c:.04,R:8},{c:.16,R:32},{c:.64,R:128}],RC0=RINGS.map(r=>r.c),TN=64,TILES=new Map(),ED_=[0,1,2,3,4,5,6,7,0,2,1,3,4,6,5,7,0,4,1,5,2,6,3,7];
+let RMAT=null;
+function ringMat(k){if(!RMAT)RMAT=RINGS.map((r,i)=>{const m=SH.clone();m.polygonOffset=i>0;m.polygonOffsetFactor=i;m.polygonOffsetUnits=i*4;return m});return RMAT[k]}
+function buildTile(k,ix,iz){const c=RINGS[k].c,N=TN,x0=ix*N*c,z0=iz*N*c,NC=N+3;if(cutOn&&x0-2*c>=cutX)return null;
+ const Hc=new Float32Array(NC*NC);let hmin=1e9,hmax=-1e9;
+ for(let j=0;j<NC;j++)for(let i=0;i<NC;i++){const h=hAt(x0+(i-1)*c,z0+(j-1)*c);Hc[i+j*NC]=h;if(h<hmin)hmin=h;if(h>hmax)hmax=h}
+ const xa=x0-2*c,xb=x0+(N+2)*c,za=z0-2*c,zb=z0+(N+2)*c,E=EDITS.filter(e=>e.x+e.r>xa&&e.x-e.r<xb&&e.z+e.r>za&&e.z-e.r<zb);
+ let y0=hmin-2*c,y1=hmax+2*c;for(const e of E){y0=Math.min(y0,e.y-e.r-2*c);y1=Math.max(y1,e.y+e.r+2*c)}
+ const cutHere=cutOn&&xb>cutX&&xa<cutX;if(cutHere)y0=Math.min(y0,hmin-6);
+ y0=Math.max(y0,y1-1190*c);y0=Math.floor(y0/c)*c;const NY_=Math.min(1200,Math.ceil((y1-y0)/c)+2),F=new Float32Array(NC*NC*NY_),id=(i,j,q)=>i+NC*(j+NC*q);
+ const simple=!E.length&&!cutHere;
+ /* camino rápido: sin ediciones la densidad es h−y y solo se recorren las celdas que cruzan la superficie */
+ if(simple)return buildTileFast(k,c,N,NC,x0,z0,y0,Hc);
+ for(let q=0;q<NY_;q++){const y=y0+q*c;for(let j=0;j<NC;j++)for(let i=0;i<NC;i++){const h=Hc[i+j*NC];F[id(i,j,q)]=dens(x0+(i-1)*c,y,z0+(j-1)*c,h,E)}}
+ const P=[],Nn=[],Co=[],G=[],I=[],NC1=NC-1,V=new Int32Array(NC1*NC1*(NY_-1)).fill(-1),cid=(i,j,q)=>i+NC1*(j+NC1*q),dd=new Float32Array(8);
+ for(let q=0;q<NY_-1;q++)for(let j=0;j<NC1;j++)for(let i=0;i<NC1;i++){
+  let mask=0;for(let s=0;s<8;s++){const v=F[id(i+(s&1),j+(s>>2&1),q+(s>>1&1))];dd[s]=v;if(v>0)mask|=1<<s}
+  if(mask===0||mask===255)continue;let px=0,py=0,pz=0,n=0;
+  for(let e=0;e<24;e+=2){const a=ED_[e],b=ED_[e+1],da=dd[a],db=dd[b];if((da>0)!==(db>0)){const t=da/(da-db);px+=(a&1)+((b&1)-(a&1))*t;py+=(a>>1&1)+((b>>1&1)-(a>>1&1))*t;pz+=(a>>2&1)+((b>>2&1)-(a>>2&1))*t;n++}}
+  let gx=dd[1]-dd[0]+dd[3]-dd[2]+dd[5]-dd[4]+dd[7]-dd[6],gy=dd[2]-dd[0]+dd[3]-dd[1]+dd[6]-dd[4]+dd[7]-dd[5],gz=dd[4]-dd[0]+dd[5]-dd[1]+dd[6]-dd[2]+dd[7]-dd[3],gl=Math.hypot(gx,gy,gz)||1;
+  const X=x0+(i-1+px/n)*c,Y=y0+(q+py/n)*c,Z=z0+(j-1+pz/n)*c,nx=-gx/gl,ny=-gy/gl,nz=-gz/gl;
+  const ii=cl(Math.round(i-1+px/n)+1,0,NC-1),jj=cl(Math.round(j-1+pz/n)+1,0,NC-1),m=matAt(X-nx*.006,Y-ny*.006,Z-nz*.006,Hc[ii+jj*NC],Math.max(.05,c))||2;
+  V[cid(i,j,q)]=P.length/3;P.push(X,Y,Z);Nn.push(nx,ny,nz);Co.push(MC[m*3],MC[m*3+1],MC[m*3+2]);G.push(Hc[ii+jj*NC]-Y<.03&&m<7?1:0,MAT[m].f,MAT[m].k)}
+ const quad=(a,b,c2,d)=>{a=V[a];b=V[b];c2=V[c2];d=V[d];if(a>=0&&b>=0&&c2>=0&&d>=0)I.push(a,b,c2,a,c2,d)},S1=NC1,S2=NC1*NC1;
+ for(let q=1;q<NY_-1;q++)for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){const s0=F[id(i,j,q)]>0,o=cid(i,j,q);
+  if(s0!==(F[id(i+1,j,q)]>0))quad(o,o-S2,o-S2-S1,o-S1);
+  if(s0!==(F[id(i,j,q+1)]>0))quad(o,o-1,o-1-S1,o-S1);
+  if(s0!==(F[id(i,j+1,q)]>0))quad(o,o-1,o-1-S2,o-S2)}
+ const g=geo(P,Nn,Co,G,I);if(!g)return null;const mesh=new THREE.Mesh(g,ringMat(k));if(k)mesh.position.y=-.3*c;return mesh}
+function buildTileFast(k,c,N,NC,x0,z0,y0,Hc){const NC1=NC-1,P=[],Nn=[],Co=[],G=[],I=[],VM=new Map(),dd=new Float32Array(8),H=(i,j)=>Hc[i+j*NC];
+ const vert=(i,j,q)=>{const key=(q*NC1+j)*NC1+i;let v=VM.get(key);if(v!==undefined)return v;const y=y0+q*c,h00=H(i,j),h10=H(i+1,j),h01=H(i,j+1),h11=H(i+1,j+1);
+  dd[0]=h00-y;dd[1]=h10-y;dd[2]=h00-y-c;dd[3]=h10-y-c;dd[4]=h01-y;dd[5]=h11-y;dd[6]=h01-y-c;dd[7]=h11-y-c;let mask=0;for(let s=0;s<8;s++)if(dd[s]>0)mask|=1<<s;
+  if(mask===0||mask===255){VM.set(key,-1);return -1}let px=0,py=0,pz=0,n=0;
+  for(let e=0;e<24;e+=2){const a=ED_[e],b=ED_[e+1],da=dd[a],db=dd[b];if((da>0)!==(db>0)){const t=da/(da-db);px+=(a&1)+((b&1)-(a&1))*t;py+=(a>>1&1)+((b>>1&1)-(a>>1&1))*t;pz+=(a>>2&1)+((b>>2&1)-(a>>2&1))*t;n++}}
+  const gx=(h10-h00+h11-h01)/2,gz=(h01-h00+h11-h10)/2,gl=Math.hypot(gx,c,gz),nx=-gx/gl,ny=c/gl,nz=-gz/gl;
+  const X=x0+(i-1+px/n)*c,Y=y+py/n*c,Z=z0+(j-1+pz/n)*c,hv=h00+(h10-h00)*px/n+(h01-h00)*pz/n,m=natMat(X,Y-.006,Z,hv,Math.max(.05,c))||2;
+  v=P.length/3;P.push(X,Y,Z);Nn.push(nx,ny,nz);Co.push(MC[m*3],MC[m*3+1],MC[m*3+2]);G.push(hv-Y<.03&&m<7?1:0,MAT[m].f,MAT[m].k);VM.set(key,v);return v};
+ const quad=(a,b,c2,d)=>{if(a>=0&&b>=0&&c2>=0&&d>=0)I.push(a,b,c2,a,c2,d)},qOf=h=>Math.floor((h-y0)/c);
+ for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){const h=H(i,j);
+  {const q=qOf(h);if(q>=1)quad(vert(i,j,q),vert(i-1,j,q),vert(i-1,j-1,q),vert(i,j-1,q))}
+  {const h2=H(i+1,j),qa=qOf(Math.min(h,h2)),qb=qOf(Math.max(h,h2));for(let q=Math.max(1,qa);q<=qb;q++){const y=y0+q*c;if((h-y>0)!==(h2-y>0))quad(vert(i,j,q),vert(i,j,q-1),vert(i,j-1,q-1),vert(i,j-1,q))}}
+  {const h2=H(i,j+1),qa=qOf(Math.min(h,h2)),qb=qOf(Math.max(h,h2));for(let q=Math.max(1,qa);q<=qb;q++){const y=y0+q*c;if((h-y>0)!==(h2-y>0))quad(vert(i,j,q),vert(i-1,j,q),vert(i-1,j,q-1),vert(i,j,q-1))}}}
+ const g=geo(P,Nn,Co,G,I);if(!g)return null;const mesh=new THREE.Mesh(g,ringMat(k));if(k)mesh.position.y=-.3*c;return mesh}
+function wantedTiles(px,pz){const W=[];RINGS.forEach((r,k)=>{const T=TN*r.c;
+ for(let ix=Math.floor((px-r.R)/T);ix<=Math.floor((px+r.R)/T);ix++)for(let iz=Math.floor((pz-r.R)/T);iz<=Math.floor((pz+r.R)/T);iz++){const x0=ix*T,z0=iz*T;W.push({k,ix,iz,key:k+'|'+ix+'|'+iz,d:Math.hypot(x0+T/2-px,z0+T/2-pz)})}});return W}
+function setDetail(d){DETAIL=d;RINGS.forEach((r,k)=>r.c=RC0[k]*DET[d]);for(const t of TILES.values())if(t.mesh){S.remove(t.mesh);t.mesh.geometry.dispose()}TILES.clear()}
+function tileBounds(t){const T=TN*RINGS[t.k].c;return[t.ix*T,t.iz*T,t.ix*T+T,t.iz*T+T]}
+function dirtyBox(xa,za,xb,zb){for(const t of TILES.values()){const b=tileBounds(t);if(b[2]>xa&&b[0]<xb&&b[3]>za&&b[1]<zb)t.dirty=true}}
+function dirtyAll(){for(const t of TILES.values())t.dirty=true}
+let TPEND=0;
+function updateTerrain(px,pz,budget){const t0=performance.now(),W=wantedTiles(px,pz),want=new Set(W.map(w=>w.key)),pend=[0,0,0,0];
+ const todo=W.filter(w=>{const t=TILES.get(w.key);return !t||t.dirty}).sort((a,b)=>a.k-b.k||a.d-b.d);for(const w of todo)pend[w.k]++;TPEND=todo.length;
+ for(const w of todo){if(performance.now()-t0>budget)break;let t=TILES.get(w.key);const m=buildTile(w.k,w.ix,w.iz);if(t&&t.mesh){S.remove(t.mesh);t.mesh.geometry.dispose()}if(!t){t={k:w.k,ix:w.ix,iz:w.iz};TILES.set(w.key,t)}t.mesh=m;t.dirty=false;if(m)S.add(m);TPEND--;pend[w.k]--}
+ for(const[key,t]of TILES){if(!want.has(key)){if(pend[t.k]===0){if(t.mesh){S.remove(t.mesh);t.mesh.geometry.dispose()}TILES.delete(key)}continue}
+  /* una baldosa gruesa se oculta solo si el anillo fino ya cubre todo su espacio */
+  if(t.mesh&&t.k){const b=tileBounds(t),inn=RINGS[t.k-1].R;t.mesh.visible=!(pend[t.k-1]===0&&b[0]>=px-inn&&b[2]<=px+inn&&b[1]>=pz-inn&&b[3]<=pz+inn)}}}
+function terrainTris(){const r=[0,0,0,0];for(const t of TILES.values())if(t.mesh&&t.mesh.visible)r[t.k]+=t.mesh.geometry.index.count/3;return r}
 /* ===== Three ===== */
 const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);document.body.prepend(R.domElement);
 const S=new THREE.Scene();S.background=new THREE.Color(0xaec3d1);
@@ -126,51 +175,10 @@ if(vG.z<0.){float nl=dot(n,sun),w=clamp((nl+.4)/1.4,0.,1.);vec3 v=normalize(came
 gl_FragColor=vec4(mix(c,fogC,smoothstep(fogN,fogF,distance(p,cameraPosition))),1.);}`});
 const water=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x3d6f8a,transparent:true,opacity:.55,depthWrite:false,side:THREE.DoubleSide}));
 water.rotation.x=-Math.PI/2;S.add(water);
-function placeWater(){const w=(cutOn?cutX:NX)*VS;water.scale.set(w,NZ*VS,1);water.position.set(w/2,WL,NZ*VS/2)}
+function placeWater(px,pz){water.scale.set(600,600,1);water.position.set(Math.round(px),WL,Math.round(pz))}
 const marker=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xd9a227,wireframe:true,transparent:true,opacity:.6}));marker.visible=false;S.add(marker);
-/* ===== Chunks del terreno ===== */
-const CH=[];for(let y=0;y<CY;y++)for(let z=0;z<CZ;z++)for(let x=0;x<CX;x++)CH.push({x,y,z,mesh:null,dirty:true});
-function dirtyRange(x0,y0,z0,x1,y1,z1){for(let cy=Math.max(0,Math.floor(y0/C));cy<=Math.min(CY-1,Math.floor(y1/C));cy++)for(let cz=Math.max(0,Math.floor(z0/C));cz<=Math.min(CZ-1,Math.floor(z1/C));cz++)for(let cx=Math.max(0,Math.floor(x0/C));cx<=Math.min(CX-1,Math.floor(x1/C));cx++)CH[cx+CX*(cz+CZ*cy)].dirty=true}
-const allDirty=()=>CH.forEach(c=>c.dirty=true);
 function geo(P,N,Co,G,I){if(!I.length)return null;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));g.setAttribute('color',new THREE.Float32BufferAttribute(Co,3));g.setAttribute('gt',new THREE.Float32BufferAttribute(G,3));g.setIndex(P.length/3>65535?new THREE.Uint32BufferAttribute(I,1):new THREE.Uint16BufferAttribute(I,1));return g}
-const W=C+1,VID=new Int32Array(W*W*W),dd=new Float32Array(8),ED=[0,1,2,3,4,5,6,7,0,2,1,3,4,6,5,7,0,4,1,5,2,6,3,7];
-function meshSN(ch){
- const x0=ch.x*C,y0=ch.y*C,z0=ch.z*C,P=[],N=[],Co=[],G=[],I=[];VID.fill(-1);
- for(let k=0;k<W;k++)for(let j=0;j<W;j++)for(let i=0;i<W;i++){
-  const x=x0-1+i,y=y0-1+j,z=z0-1+k;let mask=0;
-  for(let c=0;c<8;c++){const v=den(x+(c&1),y+(c>>1&1),z+(c>>2&1));dd[c]=v;if(v>0)mask|=1<<c}
-  if(mask===0||mask===255)continue;
-  let px=0,py=0,pz=0,n=0;
-  for(let e=0;e<24;e+=2){const a=ED[e],b=ED[e+1],da=dd[a],db=dd[b];if((da>0)!==(db>0)){const t=da/(da-db);px+=(a&1)+((b&1)-(a&1))*t;py+=(a>>1&1)+((b>>1&1)-(a>>1&1))*t;pz+=(a>>2&1)+((b>>2&1)-(a>>2&1))*t;n++}}
-  let gx=dd[1]-dd[0]+dd[3]-dd[2]+dd[5]-dd[4]+dd[7]-dd[6],gy=dd[2]-dd[0]+dd[3]-dd[1]+dd[6]-dd[4]+dd[7]-dd[5],gz=dd[4]-dd[0]+dd[5]-dd[1]+dd[6]-dd[2]+dd[7]-dd[3];
-  let gl=Math.hypot(gx,gy,gz);if(gl<1e-6){gx=0;gy=-1;gz=0;gl=1}
-  let r=0,g=0,b=0,gr=0,fr=0,kt=0,s=0;
-  for(let c=0;c<8;c++)if(dd[c]>0){const m=M[(x+(c&1))+(z+(c>>2&1))*NX+(y+(c>>1&1))*SY];r+=MC[m*3];g+=MC[m*3+1];b+=MC[m*3+2];gr+=m===1;fr+=MAT[m].f;kt+=MAT[m].k;s++}
-  VID[i+W*(j+W*k)]=P.length/3;
-  P.push((x+px/n+.5)*VS,(y+py/n+.5)*VS,(z+pz/n+.5)*VS);N.push(-gx/gl,-gy/gl,-gz/gl);Co.push(r/s,g/s,b/s);G.push(gr/s,fr/s,kt/s);
- }
- const q=(a,b,c,d)=>{a=VID[a];b=VID[b];c=VID[c];d=VID[d];if(a>=0&&b>=0&&c>=0&&d>=0)I.push(a,b,c,a,c,d)},WW=W*W;
- for(let w=0;w<C;w++)for(let v=0;v<C;v++)for(let u=0;u<C;u++){
-  const x=x0+u,y=y0+v,z=z0+w,s0=den(x,y,z)>0,o=(u+1)+W*((v+1)+W*(w+1));
-  if(s0!==(den(x+1,y,z)>0))q(o,o-W,o-W-WW,o-WW);
-  if(s0!==(den(x,y+1,z)>0))q(o,o-1,o-1-WW,o-WW);
-  if(s0!==(den(x,y,z+1)>0))q(o,o-1,o-1-W,o-W);
- }
- return geo(P,N,Co,G,I);
-}
-const FACES=[[1,0,0,[1,0,0,1,1,0,1,1,1,1,0,1]],[-1,0,0,[0,0,1,0,1,1,0,1,0,0,0,0]],[0,1,0,[0,1,0,0,1,1,1,1,1,1,1,0]],[0,-1,0,[0,0,0,1,0,0,1,0,1,0,0,1]],[0,0,1,[0,0,1,1,0,1,1,1,1,0,1,1]],[0,0,-1,[0,0,0,0,1,0,1,1,0,1,0,0]]];
-function meshCube(ch){
- const x0=ch.x*C,y0=ch.y*C,z0=ch.z*C,P=[],N=[],Co=[],G=[],I=[];
- for(let y=y0;y<Math.min(y0+C,NY);y++)for(let z=z0;z<z0+C;z++)for(let x=x0;x<x0+C;x++){
-  if(den(x,y,z)<=0)continue;const m=M[x+z*NX+y*SY];
-  for(const F of FACES){if(den(x+F[0],y+F[1],z+F[2])>0)continue;const b=P.length/3,v=F[3];
-   for(let t=0;t<12;t+=3){P.push((x+v[t])*VS,(y+v[t+1])*VS,(z+v[t+2])*VS);N.push(F[0],F[1],F[2]);Co.push(MC[m*3],MC[m*3+1],MC[m*3+2]);G.push(m===1?1:0,MAT[m].f,MAT[m].k)}
-   I.push(b,b+1,b+2,b,b+2,b+3)}
- }
- return geo(P,N,Co,G,I);
-}
-function build(ch){const g=smooth?meshSN(ch):meshCube(ch);if(ch.mesh){S.remove(ch.mesh);ch.mesh.geometry.dispose();ch.mesh=null}if(g){ch.mesh=new THREE.Mesh(g,SH);S.add(ch.mesh)}ch.dirty=false}
-
+const dd=new Float32Array(8),ED=[0,1,2,3,4,5,6,7,0,2,1,3,4,6,5,7,0,4,1,5,2,6,3,7];
 /* ===== PERSONAJE ANATÓMICO: cada capa es un campo de vóxeles + Surface Nets =====
    Capas: piel (visible), ojos (visibles), músculos, esqueleto y órganos (ocultos; ya existen con nombre). */
 const len=(x,y,z)=>Math.sqrt(x*x+y*y+z*z);
@@ -996,7 +1004,7 @@ function animHero(dt,run,wet){
 }
 /* ===== Jugador y física sobre la densidad ===== */
 const pl={x:0,y:0,z:0,vy:0,g:false,face:0,ph:0,sp:0};
-function spawn(){pl.x=10;pl.z=NZ*VS/2;pl.y=NY*VS;while(pl.y>0&&!solid(pl.x,pl.y,pl.z))pl.y-=.1;pl.y+=.15;pl.vy=0}
+function spawn(){pl.x=10;pl.z=24;pl.y=hAt(pl.x,pl.z)+.05;pl.vy=0;pl.top=null}
 function groundAt(x,z,y){let top=y+.55;if(solid(x,top,z))return top;let lo=null;for(let t=top-.02;t>=y-1.2;t-=.02)if(solid(x,t,z)){lo=t;break}if(lo===null)return null;let a=lo,b=lo+.02;for(let i=0;i<10;i++){const m=(a+b)/2;if(solid(x,m,z))a=m;else b=m}return b}
 function blocked(x,y,z){for(const hh of[.6,1.05,1.5])for(const[ox,oz]of[[0,0],[.25,0],[-.25,0],[0,.25],[0,-.25]])if(solid(x+ox,y+hh,z+oz))return true;return false}
 const K={};let jumpReq=false,runOn=false,joy=null,fp=false,yaw=Math.PI/2,pitch=.35,cdist=4.5;
@@ -1007,7 +1015,7 @@ function physics(dt){
  const mx=(-s*-jy+c*jx)*spd,mz=(-c*-jy-s*jx)*spd,wet=pl.y+1.1<WL;
  const k=wet?.55:1;
  if(!blocked(pl.x+mx*dt*k,pl.y,pl.z))pl.x+=mx*dt*k;if(!blocked(pl.x,pl.y,pl.z+mz*dt*k))pl.z+=mz*dt*k;
- pl.x=cl(pl.x,.3,NX*VS-.3);pl.z=cl(pl.z,.3,NZ*VS-.3);
+
  if(jumpReq&&(pl.g||wet)&&MF.jump){pl.vy=wet?3:5.4;pl.g=false}jumpReq=false;
  const wasG=pl.g;pl.vy-=(wet?6:18)*dt;if(wet)pl.vy*=.96;const ny=pl.y+pl.vy*dt;
  if(pl.vy>0&&solid(pl.x,ny+1.78,pl.z))pl.vy=0;
@@ -1032,35 +1040,16 @@ let camY=null;function updCam(){
  let d=cdist;for(let t=.3;t<=cdist;t+=.15)if(solid(hx+ox*t,hy+oy*t,hz+oz*t)){d=Math.max(.3,t-.25);break}
  cam.position.set(hx+ox*d,hy+oy*d,hz+oz*d);cam.lookAt(hx,hy,hz);
 }
-/* ===== Rayo por vóxeles (DDA) y pincel ===== */
-function cast(o,d){
- const ox=o.x/VS,oy=o.y/VS,oz=o.z/VS;let x=Math.floor(ox),y=Math.floor(oy),z=Math.floor(oz);
- const sx=d.x>0?1:-1,sy=d.y>0?1:-1,sz=d.z>0?1:-1,tdx=Math.abs(1/d.x),tdy=Math.abs(1/d.y),tdz=Math.abs(1/d.z);
- let tx=(d.x>0?x+1-ox:ox-x)*tdx,ty=(d.y>0?y+1-oy:oy-y)*tdy,tz=(d.z>0?z+1-oz:oz-z)*tdz,px=x,py=y,pz=z;
- for(let n=0;n<2500;n++){if(den(x,y,z)>0)return{x,y,z,px,py,pz};px=x;py=y;pz=z;
-  if(tx<ty&&tx<tz){x+=sx;tx+=tdx}else if(ty<tz){y+=sy;ty+=tdy}else{z+=sz;tz+=tdz}}
- return null;
-}
-function brush(cx,cy,cz,r,add,m){const Rr=Math.ceil(r)+1;
- for(let z=cz-Rr;z<=cz+Rr;z++)for(let y=cy-Rr;y<=cy+Rr;y++)for(let x=cx-Rr;x<=cx+Rr;x++){
-  if(x<0||y<0||z<0||x>=NX||y>=NY||z>=NZ)continue;const i=x+z*NX+y*SY,sd=(Math.hypot(x-cx,y-cy,z-cz)-r)*DS;
-  if(add){const nv=cl(Math.round(Math.max(D[i],-sd)),-127,127);if(nv>0&&D[i]<=0)M[i]=m;D[i]=nv}
-  else D[i]=cl(Math.round(Math.min(D[i],sd)),-127,127)}
- dirtyRange(cx-Rr-2,cy-Rr-2,cz-Rr-2,cx+Rr+2,cy+Rr+2,cz+Rr+2);
-}
+/* ===== Rayo sobre la densidad y pincel (en metros) ===== */
+function cast(o,d){let t=.05,prev=0;for(let n=0;n<4000&&t<160;n++){const x=o.x+d.x*t,y=o.y+d.y*t,z=o.z+d.z*t;if(dens(x,y,z)>0){let a=prev,b=t;for(let i=0;i<14;i++){const m=(a+b)/2;dens(o.x+d.x*m,o.y+d.y*m,o.z+d.z*m)>0?b=m:a=m}
+  const p=new THREE.Vector3(o.x+d.x*b,o.y+d.y*b,o.z+d.z*b),e=.004,gx=dens(p.x+e,p.y,p.z)-dens(p.x-e,p.y,p.z),gy=dens(p.x,p.y+e,p.z)-dens(p.x,p.y-e,p.z),gz=dens(p.x,p.y,p.z+e)-dens(p.x,p.y,p.z-e),n3=new THREE.Vector3(-gx,-gy,-gz).normalize();
+  return{p,n:n3,m:matAt(p.x-n3.x*.006,p.y-n3.y*.006,p.z-n3.z*.006)||2}}prev=t;t+=Math.max(.01,t*.008)}return null}
+function brush(p,r,add,m){EDITS.push({t:add?1:0,x:p.x,y:p.y,z:p.z,r,m});dirtyBox(p.x-r-.7,p.z-r-.7,p.x+r+.7,p.z+r+.7)}
 const fm=v=>v.toFixed(2).replace('.',',');
-function topOf(x,z){for(let y=NY-1;y>=0;y--)if(D[x+z*NX+y*SY]>0)return y;return -1}
-function profile(hit){
- const x=hit.x,z=hit.z,top=topOf(x,z);if(top<0)return'';
- const runs=[];let cur=-9,st=top;
- for(let y=top;y>=0;y--){const i=x+z*NX+y*SY,m=D[i]>0?M[i]:0;if(m!==cur){if(cur!==-9)runs.push([cur,st,y+1]);cur=m;st=y}}
- runs.push([cur,st,0]);
- const hi=hit.x+hit.z*NX+hit.y*SY,hm=D[hi]>0?M[hi]:0;
- let h=`<h3>Perfil del suelo</h3><div class="mut">Punto (${fm(x*VS)} m, ${fm(z*VS)} m) · superficie a ${fm((top+1)*VS)} m de altura · toca para cerrar</div>
- <div style="margin:6px 0">Tocaste: <b>${MAT[hm].n}</b> a ${fm((top-hit.y)*VS+VS/2)} m de profundidad</div>`;
- for(const[m,a,b]of runs)h+=`<div class="row"><div class="sw" style="background:#${MAT[m].c.toString(16).padStart(6,'0')}"></div><div>${MAT[m].n}<br><span class="mut">${fm((top-a)*VS)}–${fm((top-b+1)*VS)} m · grosor ${fm((a-b+1)*VS)} m${b===0?' (sigue hacia abajo)':''}</span></div></div>`;
- return h;
-}
+function profile(hit){const p=hit.p,h=hAt(p.x,p.z),L=layersAt(p.x,p.z,h,.05);let a=0,html=`<h3>Perfil del suelo</h3><div class="mut">Punto (${fm(p.x)} m, ${fm(p.z)} m) · superficie natural a ${fm(h)} m · toca para cerrar</div>
+ <div style="margin:6px 0">Tocaste: <b>${MAT[hit.m].n}</b> a ${fm(Math.max(0,h-p.y))} m de profundidad${p.y<h-.01?' (excavado)':p.y>h+.01?' (relleno)':''}</div>`;
+ for(let k=0;k<=L.length;k+=2){const m=k<L.length?L[k]:7,t=k<L.length?L[k+1]:0;html+=`<div class="row"><div class="sw" style="background:#${MAT[m].c.toString(16).padStart(6,'0')}"></div><div>${MAT[m].n}<br><span class="mut">${k<L.length?fm(a)+'–'+fm(a+t)+' m · grosor '+fm(t)+' m':'desde '+fm(a)+' m hacia abajo'}</span></div></div>`;a+=t}
+ return html}
 /* ===== Entrada ===== */
 const $=id=>document.getElementById(id);
 const cv=R.domElement,camP=new Map();let tapD=null,tool='none';
@@ -1089,27 +1078,26 @@ function act(cx,cy){
  if(tool==='none')return;
  if(tool==='hurt'){nd.set(cx/innerWidth*2-1,-cy/innerHeight*2+1);rc.setFromCamera(nd,cam);if(!REGok){$('load').textContent='Preparando la anatomía…';$('load').style.display='flex';setTimeout(()=>{buildReg();$('load').style.display='none';$('load').textContent='Generando suelo y personaje…';const i=strike(rc.ray);if(i){medOn=true;medDraw()}},30)}else{const i=strike(rc.ray);if(i){medOn=true;medDraw()}}return}
  nd.set(cx/innerWidth*2-1,-cy/innerHeight*2+1);rc.setFromCamera(nd,cam);const h=cast(rc.ray.origin,rc.ray.direction);if(!h)return;
- const r=+$('rad').value;marker.position.set((h.x+.5)*VS,(h.y+.5)*VS,(h.z+.5)*VS);marker.scale.setScalar(tool==='ins'?VS:r*VS);marker.visible=true;
- if(tool==='dig')brush(h.x,h.y,h.z,r,false,0);
- else if(tool==='add')brush(h.px,h.py,h.pz,r,true,M[h.x+h.z*NX+h.y*SY]);
+ const r=+$('rad').value;marker.position.copy(h.p);marker.scale.setScalar(tool==='ins'?.02:r);marker.visible=true;
+ if(tool==='dig')brush(h.p,r,false,0);else if(tool==='add')brush(h.p.clone().addScaledVector(h.n,r*.6),r,true,h.m);
  const inf=$('info');inf.innerHTML=profile(h);inf.style.display='block';
 }
 /* ===== Interfaz ===== */
 document.querySelectorAll('#tools .b').forEach(b=>b.onclick=()=>{tool=b.dataset.t;document.querySelectorAll('#tools .b').forEach(o=>o.classList.toggle('on',o===b));if(tool==='none')marker.visible=false});
-document.querySelectorAll('#sty .b').forEach(b=>b.onclick=()=>{smooth=b.dataset.s==='1';document.querySelectorAll('#sty .b').forEach(o=>o.classList.toggle('on',o===b));allDirty();showLoad()});
 $('camB').onclick=()=>{fp=!fp;$('camB').textContent=fp?'1ª persona':'3ª persona';pitch=fp?0:.35};
 let menu=false;$('menuB').onclick=()=>{menu=!menu;$('more').style.display=menu?'flex':'none';$('menuB').classList.toggle('on',menu)};
-$('cutB').onclick=()=>{cutOn=!cutOn;$('cutB').textContent='Corte: '+(cutOn?'sí':'no');$('cutB').classList.toggle('on',cutOn);$('cutL').style.display=cutOn?'flex':'none';dirtyRange(Math.min(cutX,NX)-2,0,0,NX,NY,NZ);placeWater()};
-$('cut').onchange=e=>{const n=+e.target.value;dirtyRange(Math.min(n,cutX)-2,0,0,Math.max(n,cutX)+1,NY,NZ);cutX=n;placeWater()};
-const rv=()=>$('radV').textContent=fm(+$('rad').value*VS)+' m';$('rad').oninput=rv;rv();
-$('seedB').onclick=()=>{SEED++;gen();allDirty();$('info').style.display='none';marker.visible=false;spawn();showLoad()};
+document.querySelectorAll('#detG .b').forEach(b=>b.onclick=()=>{document.querySelectorAll('#detG .b').forEach(o=>o.classList.toggle('on',o===b));setDetail(b.dataset.d);showLoad()});
+$('cutB').onclick=()=>{cutOn=!cutOn;cutX=pl.x+(+$('cut').value);$('cutB').textContent='Corte: '+(cutOn?'sí':'no');$('cutB').classList.toggle('on',cutOn);$('cutL').style.display=cutOn?'flex':'none';dirtyAll()};
+$('cut').onchange=e=>{cutX=pl.x+(+e.target.value);dirtyAll()};
+const rv=()=>$('radV').textContent=fm(+$('rad').value)+' m';$('rad').oninput=rv;rv();
+$('seedB').onclick=()=>{SEED++;EDITS=[];LCACHE.clear();dirtyAll();$('info').style.display='none';marker.visible=false;spawn();showLoad()};
 $('spawnB').onclick=spawn;$('bf').oninput=e=>$('bfV').textContent=e.target.value+' %';$('bf').onchange=e=>{showLoad();setTimeout(()=>setFat(+e.target.value),30)};$('anatB').onclick=()=>setAnat((am+1)%AMODES.length);
 $('info').onclick=()=>$('info').style.display='none';
 let legOn=false;$('legB').onclick=()=>{legOn=!legOn;$('leg').style.display=legOn?'block':'none';$('legB').classList.toggle('on',legOn)};
 const showLoad=()=>{$('load').style.display='flex'};
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)});
-function fillLeg(){$('leg').innerHTML='<h3>Atlas anatómico</h3><p class="mut">'+(ANAT.done?'Huesos: <b>'+ANAT.bones.size+' / 206</b> · dientes: 32 / 32 · cartílagos: '+ANAT.names.cart.size+' tipos · músculos: <b>'+ANAT.musP.size+' piezas con nombre</b> ('+ANAT.names.mus.size+' tipos) · órganos: <b>'+ANAT.orgP.size+' piezas con nombre</b> ('+ANAT.names.org.size+' tipos).'+[['vaso','Vasos sanguíneos'],['linf','Linfático'],['nerv','Nervios'],['lig','Ligamentos, tendones y bolsas']].map(([k,t])=>ANAT.P[k].size?' · '+t.toLowerCase()+': <b>'+ANAT.P[k].size+' piezas</b> ('+ANAT.names[k].size+' tipos)':'').join('')+'<br><b>Órganos:</b> '+[...ANAT.names.org].sort().join(', ')+'.'+[['vaso','Vasos sanguíneos'],['linf','Linfático'],['nerv','Nervios'],['lig','Ligamentos, tendones y bolsas']].map(([k,t])=>ANAT.P[k].size?'<br><b>'+t+':</b> '+[...ANAT.names[k]].sort().join(', ')+'.':'').join('')+'<br><b>Huesos:</b> '+[...new Set([...ANAT.bones].map(n=>n.replace(/ (izquierd|derech)[oa]$/,'')))].join(', ')+'.<br><b>Músculos:</b> '+[...ANAT.names.mus].sort().join(', ')+'.<br><b>Cartílagos:</b> '+[...ANAT.names.cart].join(', ')+'.':'Abre Menú → Anatomía: cada sistema se construye la primera vez que lo eliges (unos segundos).')+'</p><h3>Novedades v0.13.1</h3><p class="mut">• Arreglado el temblor del personaje: ahora se calcula la altura exacta del suelo bajo los pies (antes subía y bajaba en saltos de 2–3 cm cada cuadro). La cámara sigue la altura de forma suave.<br>• Las lesiones por caída usan la altura real de la caída con la gravedad de la Tierra (9,81 m/s²), no la gravedad del salto del juego: lesión desde ~3,3 m.</p><h3>Novedades v0.13</h3><p class="mut">• Sistema de lesiones que usa la anatomía real. Herramienta «Herir» + arma en el Menú (corte 1,5 cm, punción 10 cm, flecha 18 cm, golpe 70 J, bala 40 cm): el impacto entra por la piel y recorre el cuerpo; cada estructura que atraviesa cuenta.<br>• Sangrado según el calibre de cada vaso (p. ej. femoral ≈ 600 mL/min, radial ≈ 160, digital ≈ 18; venas la mitad) y sangrado interno por órgano (hígado 150, bazo 120, corazón 2 500…). Las heridas pequeñas coagulan solas; las arterias no.<br>• Signos vitales: volumen de sangre (5 L), clase de hemorragia I–IV, pulso, presión sistólica, oxígeno, conciencia y dolor. Muerte por choque (> 50 % de sangre perdida), hipoxia o lesión del tronco encefálico.<br>• Fracturas según la energía y la resistencia de cada hueso; caídas de más de ~3 m fracturan talones, tibias o fémures y desde muy alto la columna. Nervios cortados quitan la función real (radial → mano caída, peroneo → pie caído, ciático → pierna paralizada, médula → parálisis según el nivel); Aquiles roto impide correr y saltar; neumotórax baja el oxígeno.<br>• El cuerpo responde: cojea, no puede correr o saltar, se desploma si queda inconsciente o paralizado, deja rastro de sangre y la herida queda marcada en la piel.<br>• Tratamientos: presión directa, vendar, torniquete (en brazos y piernas), ligar arteria, suturar y entablillar. Panel «Salud» con velocidad del tiempo ×1 a ×600 y «Curar todo».</p><h3>Novedades v0.12</h3><p class="mut">• Sin costuras en rodillas y codos: la pierna y el antebrazo incluyen la parte final del muslo y del brazo, unidas de forma suave; ya no se ve el anillo en la articulación.<br>• Anatomía bajo demanda por sistema: al elegir un modo solo se construye lo que ese modo muestra (por ejemplo, el esqueleto completo en unos segundos), en vez de todo el cuerpo de una vez.</p><h3>Novedades v0.11</h3><p class="mut">• Sistema articular: ~340 piezas con nombre (134 tipos).<br>– Columna: longitudinales anterior y posterior, supraespinoso, nucal, interespinosos y amarillos de cada segmento.<br>– Pelvis: sacroilíacos, sacrotuberosos, sacroespinosos, inguinales, iliolumbares.<br>– Tórax y hombro: esternoclaviculares, costoclaviculares, esternocostales radiados, acromioclaviculares, conoide, trapezoide, coracoacromial, coracohumeral, glenohumerales, cápsula del hombro y bolsa subacromial.<br>– Codo, muñeca y mano: colaterales cubital y radial, anular del radio, radiocarpianos, colaterales del carpo, retináculos flexor y extensor, aponeurosis palmar, tendones flexores y extensores de cada dedo y colaterales de cada articulación de los dedos.<br>– Cadera y rodilla: iliofemoral, pubofemoral, isquiofemoral, redondo, cápsulas, tracto iliotibial, cruzados, colaterales, rotuliano, poplíteo oblicuo, tendón del cuádriceps y bolsas (trocantérea, iliopsoas, suprarrotuliana, prerrotuliana, infrarrotuliana, anserina).<br>– Tobillo y pie: deltoideo, talofibulares, calcaneofibular, tibiofibulares, resorte, plantar largo, retináculos, aponeurosis plantar, tendones de Aquiles, tibiales, peroneos y de cada dedo, bolsa retrocalcánea.<br>– Cabeza: gálea, ligamentos y discos temporomandibulares. Fascia toracolumbar.</p><h3>Novedades v0.10</h3><p class="mut">• Sistema nervioso periférico: ~390 piezas con nombre (111 tipos).<br>– Los 12 pares craneales con sus ramas: olfatorio, óptico, oculomotor, troclear, trigémino (ganglio de Gasser y sus 3 divisiones, lingual), abducens, facial (5 ramas), vestibulococlear, glosofaríngeo, vago (con los laríngeos recurrentes), accesorio e hipogloso.<br>– Los 31 pares de nervios espinales (C1–C8, T1–T12, L1–L5, S1–S5, Co1), cada uno con su ganglio de la raíz dorsal.<br>– Plexo cervical (frénico, auricular mayor, occipitales, transverso del cuello, supraclaviculares); plexo braquial con raíces, troncos y cordones, supraescapular, torácico largo, toracodorsal, pectorales, subescapular, musculocutáneo, axilar, radial, mediano, cubital y sus ramas en antebrazo y mano hasta cada dedo; 11 intercostales y subcostal; plexo lumbar (iliohipogástrico, ilioinguinal, genitofemoral, cutáneo femoral lateral, femoral, obturador, safeno); plexo sacro (ciático, glúteos, pudendo, cutáneo femoral posterior, tibial, plantares, peroneos común, superficial y profundo, sural, digitales del pie).<br>– Sistema autónomo: troncos simpáticos con ganglios cervicales, estrellado, torácicos, lumbares y sacros, ganglio impar, esplácnicos, ganglios celíacos y mesentéricos.</p><h3>Novedades v0.9</h3><p class="mut">• Sistema circulatorio: ~260 vasos con nombre (113 tipos). Arterias: aorta en 4 tramos, coronarias, tronco pulmonar y arterias pulmonares, carótidas común, interna y externa con sus ramas (facial, lingual, maxilar, temporal superficial, occipital, tiroidea superior), vertebrales, basilar, círculo de Willis completo, oftálmicas, torácicas internas, 11 intercostales por lado, tronco celíaco y sus 3 ramas, mesentéricas, renales, suprarrenales, testiculares, lumbares, ilíacas, glúteas, pudendas; en los miembros axilar, braquial, radial, cubital, arcos palmares, digitales, femoral, profunda, circunflejas, poplítea, tibiales, peronea, dorsal del pie, plantares y arco plantar. Venas: cavas, braquiocefálicas, yugulares, facial, retromandibular, senos durales, ácigos y hemiácigos, porta, esplénica, mesentéricas, hepáticas, renales, pulmonares, intercostales, cefálica, basílica, mediana del codo, safenas mayor y menor, femoral, poplítea, tibiales y arcos venosos.<br>• Sistema linfático: conducto torácico, cisterna del quilo, conducto linfático derecho, vasos linfáticos de los miembros y ~120 ganglios por región (cervicales, submandibulares, occipitales, auriculares, supraclaviculares, axilares, mediastínicos, hiliares, paraaórticos, celíacos, mesentéricos, ilíacos, inguinales, epitrocleares y poplíteos).<br>• Los vasos son tubos reales que siguen a cada segmento del cuerpo al moverse.</p><h3>Novedades v0.8</h3><p class="mut">• Órganos completos por aparato (~190 piezas con nombre, 135 tipos):<br>– Nervioso central: 4 lóbulos por hemisferio, ínsula, tálamos, hipotálamo, núcleos caudado y putamen, hipocampos, amígdalas cerebrales, cuerpo calloso, 4 ventrículos, mesencéfalo, puente, bulbo, cerebelo (hemisferios y vermis), hipófisis, pineal, bulbos olfatorios, quiasma óptico, duramadre (con ventana abierta), médula espinal, cono medular, cola de caballo y filum terminal.<br>– Ojo: córnea, iris, cristalino, cuerpo vítreo, retina, esclerótica, nervio óptico y glándula lagrimal. Oído: conducto auditivo, tímpano, cóclea, vestíbulo, 3 conductos semicirculares y trompa de Eustaquio.<br>– Nariz y boca: cavidad nasal, 4 senos paranasales, parótidas, submandibulares, sublinguales, amígdalas (palatinas, faríngea, lingual), encías, lengua, faringe en 3 partes, cuerdas vocales.<br>– Cuello: tiroides (lóbulos e istmo) y 4 paratiroides. Tórax: timo, tráquea, carina, bronquios principales y lobares, pulmón derecho en 3 lóbulos e izquierdo en 2, pleuras, corazón con 4 cámaras y 4 válvulas, pericardio.<br>– Abdomen: esófago, estómago en 4 partes, duodeno, yeyuno, íleon, ciego, apéndice, colon en 4 partes, recto, canal anal, hígado en 4 lóbulos, vesícula, conductos biliares, páncreas en 3 partes con su conducto, bazo, epiplón y mesenterio.<br>– Urinario: riñones, pelvis renales, uréteres, vejiga, uretra. Suprarrenales.<br>– Reproductor masculino (oculto bajo el bóxer): testículos, epidídimos, conductos deferentes, vesículas seminales, próstata, glándulas bulbouretrales, cuerpos cavernosos y esponjoso, glande, escroto.<br>• Resolución por órgano: oído interno 0,45 mm, ojo 0,6 mm.</p><h3>Novedades v0.7</h3><p class="mut">• Sistema muscular completo por regiones (~690 piezas con nombre y lado, 240 tipos), cada músculo de su origen a su inserción:<br>– Cabeza y cuello: 6 extraoculares y elevador del párpado por ojo, 4 extrínsecos y 4 intrínsecos de la lengua, paladar blando, 3 constrictores de la faringe, laringe (cricotiroideo, cricoaritenoideos, tiroaritenoideo, vocal, aritenoideos), oído medio (tensor del tímpano, estapedio), suboccipitales, prevertebrales, 3 escalenos, esplenios, semiespinosos, elevador de la escápula, infra y suprahioideos.<br>– Tronco: romboides, serratos posteriores, erectores de la columna en 9 partes, multífidos, rotadores y elevadores de las costillas uno por segmento, interespinosos e intertransversos, 33 intercostales por lado (externos, internos e íntimos), diafragma, pared abdominal completa, psoas e ilíaco, suelo pélvico y periné, rotadores profundos de la cadera.<br>– Miembro superior: manguito rotador, 3 porciones del deltoides, cabezas del bíceps y tríceps, los 19 del antebrazo, tenar, hipotenar, 4 lumbricales y 7 interóseos por mano.<br>– Miembro inferior: glúteos, cuádriceps, aductores, isquiotibiales, los 13 de la pierna y las 4 capas de la planta del pie.<br>• Construcción más rápida: rejilla de aceleración y mallas por región.</p><h3>Novedades v0.6</h3><p class="mut">• Esqueleto completo: los 206 huesos del adulto, cada uno con nombre y lado: 22 del cráneo (8 craneales y 14 faciales), 6 huesecillos del oído (martillo, yunque, estribo), hioides, 26 de la columna (24 vértebras, sacro, cóccix), esternón y 24 costillas, y en cada mano 8 del carpo, 5 metacarpianos y 14 falanges que siguen la curva de los dedos; en cada pie 7 del tarso, 5 metatarsianos y 14 falanges.<br>• 32 dientes (incisivos, caninos, premolares, molares y muelas del juicio).<br>• Capa nueva de cartílagos: 23 discos intervertebrales, cartílagos costales, nariz (septal, laterales, alares), orejas, laringe (tiroides, cricoides, aritenoides, epiglotis), meniscos y sínfisis del pubis.<br>• Cabeza por capas: cráneo + 26 tipos de músculos de la cara y el cuello (expresión, masticación, oreja, suprahioideos e infrahioideos) + bolsas de grasa (Bichat, malar, nasolabial, temporal, orbitaria, submentoniana) + cartílagos + piel. Cada capa se ajusta sola para quedar debajo de la piel.<br>• Las capas internas se construyen solo cuando abres el modo Anatomía, así el juego arranca igual de rápido.</p><h3>Novedades v0.5</h3><p class="mut">• La piel ya no es una forma esculpida: se construye por capas como en el cuerpo real. Hueso → músculos con forma de huso (vientre grueso, tendones delgados) → grasa subcutánea con grosor por región → dermis de 2 mm.<br>• Grosores de grasa a 15 %: abdomen ~1,2 cm, flancos ~1 cm, glúteos ~1,4 cm, muslo lateral ~1 cm, parte posterior del brazo ~9 mm, antebrazo 2,5 mm, espinilla y rótula ~1–2 mm (ahí el hueso queda casi bajo la piel), tórax ~6 mm.<br>• Relieves óseos bajo la piel: clavículas, acromion, esternón, escápulas, crestas ilíacas, trocánter, rótula, tibia, maléolos, olécranon, cúbito y muñeca. Ombligo y surco de la columna se ajustan solos a la grasa.<br>• Capa nueva «Grasa subcutánea» (Menú → Anatomía): amarillo más intenso = más grueso.<br>• Control «Grasa corporal» (6–35 %) en el Menú: el cuerpo se reconstruye con más o menos grasa.<br>• La cabeza sigue esculpida (con su grasa facial incluida); se pasará a capas después.</p><h3>Novedades v0.4</h3><p class="mut">• Piel rediseñada con anatomía de superficie: cara con arco de las cejas, párpados, pómulos, nariz con fosas, labios, mentón, mandíbula, orejas con concha y nuez; cuello con esternocleidomastoideos; trapecios, clavículas, pectorales, ombligo, escápulas y surco de la columna; codos, muñecas, manos con nudillos y dedos de 3 falanges algo curvados y uñas; rodillas con rótula y tendón, gemelos, tobillos con maléolos, tendón de Aquiles, arco del pie y 5 dedos con uñas.<br>• Resolución: cabeza 5 mm, manos 4,2 mm, pies 6 mm, cuerpo 1 cm.<br>• Color de piel con poros, rubor (mejillas, nariz, orejas, nudillos, rodillas), palmas y plantas más claras, barba incipiente, pelo con mechones, iris con fibras.<br>• Luz de piel: la luz se dispersa en la piel (aspecto menos de plástico) con un brillo suave.</p><h3>Novedades v0.3</h3><p class="mut">• Personaje nuevo: cuerpo humano delgado, solo en bóxer, piel de vóxeles suavizados (1,2 cm en el cuerpo, 6 mm en las manos con 5 dedos), cara con nariz, orejas, labios, cejas, pelo y ojos con iris y pupila.<br>• Anatomía completa por dentro, oculta: '+ANAT.n.hueso+' huesos/piezas óseas, '+ANAT.n.mus+' músculos y '+ANAT.n.org+' piezas de órganos, cada una con su nombre.<br>• Articulaciones reales: hombro, codo, cadera y rodilla; la cadera baja al dar el paso para que el pie no flote.<br>• Prueba en Menú → «Anatomía» (solo para revisar; en el juego normal solo se ve la piel).</p><p class="mut"><b>Órganos:</b> '+[...ANAT.names.org].join(', ')+'.<br><b>Huesos:</b> '+[...ANAT.names.hueso].join(', ')+'.<br><b>Músculos:</b> '+[...ANAT.names.mus].join(', ')+'.<br>Triángulos: piel '+Math.round(ANAT.tris.piel+ANAT.tris.ojos)+' · músculos '+Math.round(ANAT.tris.mus||0)+' · huesos '+Math.round(ANAT.tris.hueso||0)+' · órganos '+Math.round(ANAT.tris.org||0)+'.</p><h3>Novedades v0.2</h3><p class="mut">• Caminar en 3ª y 1ª persona. Física sobre la densidad del suelo (pendientes, paredes, agua).<br>• Herramienta «Mirar» por defecto.</p><p class="mut">Controles: celular → arrastra en la esquina inferior izquierda para caminar, arrastra en el resto para girar la cámara, pellizca para alejar o acercar. PC → WASD, Shift corre, Espacio salta, arrastra con el ratón para girar, rueda para el zoom.</p><h3>Capas del suelo (de arriba a abajo)</h3>'+MAT.slice(1).map(m=>`<div class="row"><div class="sw" style="background:#${m.c.toString(16).padStart(6,'0')}"></div><div><b>${m.n}</b><br><span class="mut">${m.d}</span></div></div>`).join('')+
- '<p class="mut">Catena: en zonas planas y bajas el suelo es más profundo; en pendientes fuertes es delgado y la roca madre aflora. En la orilla del río el suelo es aluvial (arena y grava). Escala: 1 vóxel = 25 cm. Mundo: 48 × 48 × 20 m.</p>'}
+function fillLeg(){$('leg').innerHTML='<h3>Atlas anatómico</h3><p class="mut">'+(ANAT.done?'Huesos: <b>'+ANAT.bones.size+' / 206</b> · dientes: 32 / 32 · cartílagos: '+ANAT.names.cart.size+' tipos · músculos: <b>'+ANAT.musP.size+' piezas con nombre</b> ('+ANAT.names.mus.size+' tipos) · órganos: <b>'+ANAT.orgP.size+' piezas con nombre</b> ('+ANAT.names.org.size+' tipos).'+[['vaso','Vasos sanguíneos'],['linf','Linfático'],['nerv','Nervios'],['lig','Ligamentos, tendones y bolsas']].map(([k,t])=>ANAT.P[k].size?' · '+t.toLowerCase()+': <b>'+ANAT.P[k].size+' piezas</b> ('+ANAT.names[k].size+' tipos)':'').join('')+'<br><b>Órganos:</b> '+[...ANAT.names.org].sort().join(', ')+'.'+[['vaso','Vasos sanguíneos'],['linf','Linfático'],['nerv','Nervios'],['lig','Ligamentos, tendones y bolsas']].map(([k,t])=>ANAT.P[k].size?'<br><b>'+t+':</b> '+[...ANAT.names[k]].sort().join(', ')+'.':'').join('')+'<br><b>Huesos:</b> '+[...new Set([...ANAT.bones].map(n=>n.replace(/ (izquierd|derech)[oa]$/,'')))].join(', ')+'.<br><b>Músculos:</b> '+[...ANAT.names.mus].sort().join(', ')+'.<br><b>Cartílagos:</b> '+[...ANAT.names.cart].join(', ')+'.':'Abre Menú → Anatomía: cada sistema se construye la primera vez que lo eliges (unos segundos).')+'</p><h3>Novedades v0.14</h3><p class="mut">• Terreno por anillos de detalle alrededor del jugador: vóxeles de 1 cm hasta 2 m, 4 cm hasta 8 m, 16 cm hasta 32 m y 64 cm hasta 128 m. Al caminar, los anillos se rehacen por baldosas de 64 × 64 celdas.<br>• El suelo ya no es una matriz de vóxeles: es una función continua (relieve + horizontes) más la lista de lo que excavas o rellenas, así que cada anillo la muestrea a su tamaño, lo excavado se ve igual de lejos y el mundo es infinito.<br>• Cerca del jugador se ve el grosor real de la hojarasca (2–8 cm) y el relieve fino de 1–5 cm. El pasto cubre toda la superficie natural; donde excavas aparecen los horizontes.<br>• Pincel de 2 cm a 1,5 m. «Corte» corta el terreno a la distancia elegida delante del jugador y muestra el perfil hasta 6 m de profundidad. El perfil del suelo se calcula exacto.<br>• Menú → Detalle alto / medio / bajo (1, 2 o 4 veces el tamaño del vóxel). Abajo se muestran los FPS y los triángulos del terreno. Detalle alto ≈ 2,8 millones de triángulos; si el iPhone va lento, prueba medio (≈ 0,9 millones).<br>• Se quitó el modo «Cubos».</p><h3>Novedades v0.13.1</h3><p class="mut">• Arreglado el temblor del personaje: ahora se calcula la altura exacta del suelo bajo los pies (antes subía y bajaba en saltos de 2–3 cm cada cuadro). La cámara sigue la altura de forma suave.<br>• Las lesiones por caída usan la altura real de la caída con la gravedad de la Tierra (9,81 m/s²), no la gravedad del salto del juego: lesión desde ~3,3 m.</p><h3>Novedades v0.13</h3><p class="mut">• Sistema de lesiones que usa la anatomía real. Herramienta «Herir» + arma en el Menú (corte 1,5 cm, punción 10 cm, flecha 18 cm, golpe 70 J, bala 40 cm): el impacto entra por la piel y recorre el cuerpo; cada estructura que atraviesa cuenta.<br>• Sangrado según el calibre de cada vaso (p. ej. femoral ≈ 600 mL/min, radial ≈ 160, digital ≈ 18; venas la mitad) y sangrado interno por órgano (hígado 150, bazo 120, corazón 2 500…). Las heridas pequeñas coagulan solas; las arterias no.<br>• Signos vitales: volumen de sangre (5 L), clase de hemorragia I–IV, pulso, presión sistólica, oxígeno, conciencia y dolor. Muerte por choque (> 50 % de sangre perdida), hipoxia o lesión del tronco encefálico.<br>• Fracturas según la energía y la resistencia de cada hueso; caídas de más de ~3 m fracturan talones, tibias o fémures y desde muy alto la columna. Nervios cortados quitan la función real (radial → mano caída, peroneo → pie caído, ciático → pierna paralizada, médula → parálisis según el nivel); Aquiles roto impide correr y saltar; neumotórax baja el oxígeno.<br>• El cuerpo responde: cojea, no puede correr o saltar, se desploma si queda inconsciente o paralizado, deja rastro de sangre y la herida queda marcada en la piel.<br>• Tratamientos: presión directa, vendar, torniquete (en brazos y piernas), ligar arteria, suturar y entablillar. Panel «Salud» con velocidad del tiempo ×1 a ×600 y «Curar todo».</p><h3>Novedades v0.12</h3><p class="mut">• Sin costuras en rodillas y codos: la pierna y el antebrazo incluyen la parte final del muslo y del brazo, unidas de forma suave; ya no se ve el anillo en la articulación.<br>• Anatomía bajo demanda por sistema: al elegir un modo solo se construye lo que ese modo muestra (por ejemplo, el esqueleto completo en unos segundos), en vez de todo el cuerpo de una vez.</p><h3>Novedades v0.11</h3><p class="mut">• Sistema articular: ~340 piezas con nombre (134 tipos).<br>– Columna: longitudinales anterior y posterior, supraespinoso, nucal, interespinosos y amarillos de cada segmento.<br>– Pelvis: sacroilíacos, sacrotuberosos, sacroespinosos, inguinales, iliolumbares.<br>– Tórax y hombro: esternoclaviculares, costoclaviculares, esternocostales radiados, acromioclaviculares, conoide, trapezoide, coracoacromial, coracohumeral, glenohumerales, cápsula del hombro y bolsa subacromial.<br>– Codo, muñeca y mano: colaterales cubital y radial, anular del radio, radiocarpianos, colaterales del carpo, retináculos flexor y extensor, aponeurosis palmar, tendones flexores y extensores de cada dedo y colaterales de cada articulación de los dedos.<br>– Cadera y rodilla: iliofemoral, pubofemoral, isquiofemoral, redondo, cápsulas, tracto iliotibial, cruzados, colaterales, rotuliano, poplíteo oblicuo, tendón del cuádriceps y bolsas (trocantérea, iliopsoas, suprarrotuliana, prerrotuliana, infrarrotuliana, anserina).<br>– Tobillo y pie: deltoideo, talofibulares, calcaneofibular, tibiofibulares, resorte, plantar largo, retináculos, aponeurosis plantar, tendones de Aquiles, tibiales, peroneos y de cada dedo, bolsa retrocalcánea.<br>– Cabeza: gálea, ligamentos y discos temporomandibulares. Fascia toracolumbar.</p><h3>Novedades v0.10</h3><p class="mut">• Sistema nervioso periférico: ~390 piezas con nombre (111 tipos).<br>– Los 12 pares craneales con sus ramas: olfatorio, óptico, oculomotor, troclear, trigémino (ganglio de Gasser y sus 3 divisiones, lingual), abducens, facial (5 ramas), vestibulococlear, glosofaríngeo, vago (con los laríngeos recurrentes), accesorio e hipogloso.<br>– Los 31 pares de nervios espinales (C1–C8, T1–T12, L1–L5, S1–S5, Co1), cada uno con su ganglio de la raíz dorsal.<br>– Plexo cervical (frénico, auricular mayor, occipitales, transverso del cuello, supraclaviculares); plexo braquial con raíces, troncos y cordones, supraescapular, torácico largo, toracodorsal, pectorales, subescapular, musculocutáneo, axilar, radial, mediano, cubital y sus ramas en antebrazo y mano hasta cada dedo; 11 intercostales y subcostal; plexo lumbar (iliohipogástrico, ilioinguinal, genitofemoral, cutáneo femoral lateral, femoral, obturador, safeno); plexo sacro (ciático, glúteos, pudendo, cutáneo femoral posterior, tibial, plantares, peroneos común, superficial y profundo, sural, digitales del pie).<br>– Sistema autónomo: troncos simpáticos con ganglios cervicales, estrellado, torácicos, lumbares y sacros, ganglio impar, esplácnicos, ganglios celíacos y mesentéricos.</p><h3>Novedades v0.9</h3><p class="mut">• Sistema circulatorio: ~260 vasos con nombre (113 tipos). Arterias: aorta en 4 tramos, coronarias, tronco pulmonar y arterias pulmonares, carótidas común, interna y externa con sus ramas (facial, lingual, maxilar, temporal superficial, occipital, tiroidea superior), vertebrales, basilar, círculo de Willis completo, oftálmicas, torácicas internas, 11 intercostales por lado, tronco celíaco y sus 3 ramas, mesentéricas, renales, suprarrenales, testiculares, lumbares, ilíacas, glúteas, pudendas; en los miembros axilar, braquial, radial, cubital, arcos palmares, digitales, femoral, profunda, circunflejas, poplítea, tibiales, peronea, dorsal del pie, plantares y arco plantar. Venas: cavas, braquiocefálicas, yugulares, facial, retromandibular, senos durales, ácigos y hemiácigos, porta, esplénica, mesentéricas, hepáticas, renales, pulmonares, intercostales, cefálica, basílica, mediana del codo, safenas mayor y menor, femoral, poplítea, tibiales y arcos venosos.<br>• Sistema linfático: conducto torácico, cisterna del quilo, conducto linfático derecho, vasos linfáticos de los miembros y ~120 ganglios por región (cervicales, submandibulares, occipitales, auriculares, supraclaviculares, axilares, mediastínicos, hiliares, paraaórticos, celíacos, mesentéricos, ilíacos, inguinales, epitrocleares y poplíteos).<br>• Los vasos son tubos reales que siguen a cada segmento del cuerpo al moverse.</p><h3>Novedades v0.8</h3><p class="mut">• Órganos completos por aparato (~190 piezas con nombre, 135 tipos):<br>– Nervioso central: 4 lóbulos por hemisferio, ínsula, tálamos, hipotálamo, núcleos caudado y putamen, hipocampos, amígdalas cerebrales, cuerpo calloso, 4 ventrículos, mesencéfalo, puente, bulbo, cerebelo (hemisferios y vermis), hipófisis, pineal, bulbos olfatorios, quiasma óptico, duramadre (con ventana abierta), médula espinal, cono medular, cola de caballo y filum terminal.<br>– Ojo: córnea, iris, cristalino, cuerpo vítreo, retina, esclerótica, nervio óptico y glándula lagrimal. Oído: conducto auditivo, tímpano, cóclea, vestíbulo, 3 conductos semicirculares y trompa de Eustaquio.<br>– Nariz y boca: cavidad nasal, 4 senos paranasales, parótidas, submandibulares, sublinguales, amígdalas (palatinas, faríngea, lingual), encías, lengua, faringe en 3 partes, cuerdas vocales.<br>– Cuello: tiroides (lóbulos e istmo) y 4 paratiroides. Tórax: timo, tráquea, carina, bronquios principales y lobares, pulmón derecho en 3 lóbulos e izquierdo en 2, pleuras, corazón con 4 cámaras y 4 válvulas, pericardio.<br>– Abdomen: esófago, estómago en 4 partes, duodeno, yeyuno, íleon, ciego, apéndice, colon en 4 partes, recto, canal anal, hígado en 4 lóbulos, vesícula, conductos biliares, páncreas en 3 partes con su conducto, bazo, epiplón y mesenterio.<br>– Urinario: riñones, pelvis renales, uréteres, vejiga, uretra. Suprarrenales.<br>– Reproductor masculino (oculto bajo el bóxer): testículos, epidídimos, conductos deferentes, vesículas seminales, próstata, glándulas bulbouretrales, cuerpos cavernosos y esponjoso, glande, escroto.<br>• Resolución por órgano: oído interno 0,45 mm, ojo 0,6 mm.</p><h3>Novedades v0.7</h3><p class="mut">• Sistema muscular completo por regiones (~690 piezas con nombre y lado, 240 tipos), cada músculo de su origen a su inserción:<br>– Cabeza y cuello: 6 extraoculares y elevador del párpado por ojo, 4 extrínsecos y 4 intrínsecos de la lengua, paladar blando, 3 constrictores de la faringe, laringe (cricotiroideo, cricoaritenoideos, tiroaritenoideo, vocal, aritenoideos), oído medio (tensor del tímpano, estapedio), suboccipitales, prevertebrales, 3 escalenos, esplenios, semiespinosos, elevador de la escápula, infra y suprahioideos.<br>– Tronco: romboides, serratos posteriores, erectores de la columna en 9 partes, multífidos, rotadores y elevadores de las costillas uno por segmento, interespinosos e intertransversos, 33 intercostales por lado (externos, internos e íntimos), diafragma, pared abdominal completa, psoas e ilíaco, suelo pélvico y periné, rotadores profundos de la cadera.<br>– Miembro superior: manguito rotador, 3 porciones del deltoides, cabezas del bíceps y tríceps, los 19 del antebrazo, tenar, hipotenar, 4 lumbricales y 7 interóseos por mano.<br>– Miembro inferior: glúteos, cuádriceps, aductores, isquiotibiales, los 13 de la pierna y las 4 capas de la planta del pie.<br>• Construcción más rápida: rejilla de aceleración y mallas por región.</p><h3>Novedades v0.6</h3><p class="mut">• Esqueleto completo: los 206 huesos del adulto, cada uno con nombre y lado: 22 del cráneo (8 craneales y 14 faciales), 6 huesecillos del oído (martillo, yunque, estribo), hioides, 26 de la columna (24 vértebras, sacro, cóccix), esternón y 24 costillas, y en cada mano 8 del carpo, 5 metacarpianos y 14 falanges que siguen la curva de los dedos; en cada pie 7 del tarso, 5 metatarsianos y 14 falanges.<br>• 32 dientes (incisivos, caninos, premolares, molares y muelas del juicio).<br>• Capa nueva de cartílagos: 23 discos intervertebrales, cartílagos costales, nariz (septal, laterales, alares), orejas, laringe (tiroides, cricoides, aritenoides, epiglotis), meniscos y sínfisis del pubis.<br>• Cabeza por capas: cráneo + 26 tipos de músculos de la cara y el cuello (expresión, masticación, oreja, suprahioideos e infrahioideos) + bolsas de grasa (Bichat, malar, nasolabial, temporal, orbitaria, submentoniana) + cartílagos + piel. Cada capa se ajusta sola para quedar debajo de la piel.<br>• Las capas internas se construyen solo cuando abres el modo Anatomía, así el juego arranca igual de rápido.</p><h3>Novedades v0.5</h3><p class="mut">• La piel ya no es una forma esculpida: se construye por capas como en el cuerpo real. Hueso → músculos con forma de huso (vientre grueso, tendones delgados) → grasa subcutánea con grosor por región → dermis de 2 mm.<br>• Grosores de grasa a 15 %: abdomen ~1,2 cm, flancos ~1 cm, glúteos ~1,4 cm, muslo lateral ~1 cm, parte posterior del brazo ~9 mm, antebrazo 2,5 mm, espinilla y rótula ~1–2 mm (ahí el hueso queda casi bajo la piel), tórax ~6 mm.<br>• Relieves óseos bajo la piel: clavículas, acromion, esternón, escápulas, crestas ilíacas, trocánter, rótula, tibia, maléolos, olécranon, cúbito y muñeca. Ombligo y surco de la columna se ajustan solos a la grasa.<br>• Capa nueva «Grasa subcutánea» (Menú → Anatomía): amarillo más intenso = más grueso.<br>• Control «Grasa corporal» (6–35 %) en el Menú: el cuerpo se reconstruye con más o menos grasa.<br>• La cabeza sigue esculpida (con su grasa facial incluida); se pasará a capas después.</p><h3>Novedades v0.4</h3><p class="mut">• Piel rediseñada con anatomía de superficie: cara con arco de las cejas, párpados, pómulos, nariz con fosas, labios, mentón, mandíbula, orejas con concha y nuez; cuello con esternocleidomastoideos; trapecios, clavículas, pectorales, ombligo, escápulas y surco de la columna; codos, muñecas, manos con nudillos y dedos de 3 falanges algo curvados y uñas; rodillas con rótula y tendón, gemelos, tobillos con maléolos, tendón de Aquiles, arco del pie y 5 dedos con uñas.<br>• Resolución: cabeza 5 mm, manos 4,2 mm, pies 6 mm, cuerpo 1 cm.<br>• Color de piel con poros, rubor (mejillas, nariz, orejas, nudillos, rodillas), palmas y plantas más claras, barba incipiente, pelo con mechones, iris con fibras.<br>• Luz de piel: la luz se dispersa en la piel (aspecto menos de plástico) con un brillo suave.</p><h3>Novedades v0.3</h3><p class="mut">• Personaje nuevo: cuerpo humano delgado, solo en bóxer, piel de vóxeles suavizados (1,2 cm en el cuerpo, 6 mm en las manos con 5 dedos), cara con nariz, orejas, labios, cejas, pelo y ojos con iris y pupila.<br>• Anatomía completa por dentro, oculta: '+ANAT.n.hueso+' huesos/piezas óseas, '+ANAT.n.mus+' músculos y '+ANAT.n.org+' piezas de órganos, cada una con su nombre.<br>• Articulaciones reales: hombro, codo, cadera y rodilla; la cadera baja al dar el paso para que el pie no flote.<br>• Prueba en Menú → «Anatomía» (solo para revisar; en el juego normal solo se ve la piel).</p><p class="mut"><b>Órganos:</b> '+[...ANAT.names.org].join(', ')+'.<br><b>Huesos:</b> '+[...ANAT.names.hueso].join(', ')+'.<br><b>Músculos:</b> '+[...ANAT.names.mus].join(', ')+'.<br>Triángulos: piel '+Math.round(ANAT.tris.piel+ANAT.tris.ojos)+' · músculos '+Math.round(ANAT.tris.mus||0)+' · huesos '+Math.round(ANAT.tris.hueso||0)+' · órganos '+Math.round(ANAT.tris.org||0)+'.</p><h3>Novedades v0.2</h3><p class="mut">• Caminar en 3ª y 1ª persona. Física sobre la densidad del suelo (pendientes, paredes, agua).<br>• Herramienta «Mirar» por defecto.</p><p class="mut">Controles: celular → arrastra en la esquina inferior izquierda para caminar, arrastra en el resto para girar la cámara, pellizca para alejar o acercar. PC → WASD, Shift corre, Espacio salta, arrastra con el ratón para girar, rueda para el zoom.</p><h3>Capas del suelo (de arriba a abajo)</h3>'+MAT.slice(1).map(m=>`<div class="row"><div class="sw" style="background:#${m.c.toString(16).padStart(6,'0')}"></div><div><b>${m.n}</b><br><span class="mut">${m.d}</span></div></div>`).join('')+
+ '<p class="mut">Catena: en zonas planas y bajas el suelo es más profundo; en pendientes fuertes es delgado y la roca madre aflora. En la orilla del río el suelo es aluvial (arena y grava). Vóxeles por anillos alrededor del jugador: 1 cm hasta 2 m, 4 cm hasta 8 m, 16 cm hasta 32 m y 64 cm hasta 128 m. El mundo es infinito.</p>'}
 /* ===== panel de salud ===== */
 let medOn=false,medT=0;
 const TXN={presion:'Presión directa',venda:'Vendar',torni:'Torniquete',ligadura:'Ligar arteria',sutura:'Suturar',ferula:'Entablillar'};
@@ -1129,8 +1117,8 @@ document.querySelectorAll('#wpn .b').forEach(b=>b.onclick=()=>{WEAPON=b.dataset.
 /* ===== Bucle ===== */
 let fc=0,ft=performance.now(),last=performance.now();
 function loop(){requestAnimationFrame(loop);const t0=performance.now(),dt=Math.min(.05,(t0-last)/1000);last=t0;let pend=false;
- for(const ch of CH)if(ch.dirty){if(performance.now()-t0>12){pend=true;break}build(ch)}
- if(!pend&&$('load').style.display!=='none')$('load').style.display='none';
- physio(dt*HP.tspeed);bloodTrail(dt*HP.tspeed);physics(dt);updCam();if(medOn&&(medT+=dt)>.5){medT=0;medDraw()}R.render(S,cam);fc++;const t=performance.now();if(t-ft>1000){$('fps').textContent=Math.round(fc*1000/(t-ft));fc=0;ft=t}}
-setTimeout(()=>{gen();placeWater();makeHero();fillLeg();spawn();loop()},30);
+ updateTerrain(pl.x,pl.z,$('load').style.display!=='none'?60:8);placeWater(pl.x,pl.z);
+ if(TPEND===0&&$('load').style.display!=='none')$('load').style.display='none';
+ physio(dt*HP.tspeed);bloodTrail(dt*HP.tspeed);physics(dt);updCam();if(medOn&&(medT+=dt)>.5){medT=0;medDraw()}R.render(S,cam);fc++;const t=performance.now();if(t-ft>1000){const tt=terrainTris();$('fps').textContent=Math.round(fc*1000/(t-ft))+' FPS · terreno '+Math.round((tt[0]+tt[1]+tt[2]+tt[3])/1000)+' mil triángulos'+(TPEND?' · '+TPEND+' baldosas por hacer':'');fc=0;ft=t}}
+setTimeout(()=>{makeHero();fillLeg();spawn();loop()},30);
 </script></body></html>
