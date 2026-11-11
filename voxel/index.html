@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Raíces de Niebla — Suelo vóxel v0.12</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#aec3d1;font:12px system-ui,-apple-system,sans-serif;color:#eee;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+canvas{display:block;touch-action:none}
+#ui{position:fixed;left:8px;top:8px;right:8px;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none;z-index:3}
+#ui *{pointer-events:auto}
+#more{display:none;flex-wrap:wrap;gap:6px;width:100%}
+.b{background:rgba(20,22,26,.8);border:1px solid #555;color:#eee;border-radius:8px;padding:6px 9px;font:inherit;display:flex;align-items:center;gap:6px}
+.b.on{background:#d9a227;color:#111;border-color:#d9a227}
+.grp{display:flex}.grp .b{border-radius:0}.grp .b:first-child{border-radius:8px 0 0 8px}.grp .b:last-child{border-radius:0 8px 8px 0}
+input[type=range]{width:84px}
+.pan{position:fixed;background:rgba(18,20,24,.9);border-radius:10px;padding:10px 12px;display:none;z-index:3;line-height:1.35}
+#info{left:8px;top:96px;max-width:min(360px,calc(100% - 16px));max-height:42vh;overflow:auto}
+#leg{right:8px;top:96px;bottom:40px;width:min(330px,calc(100% - 16px));overflow:auto}
+.row{display:flex;gap:8px;align-items:flex-start;margin:5px 0}
+.sw{flex:0 0 14px;height:14px;border-radius:3px;margin-top:2px;border:1px solid #0006}
+.mut{color:#aaa;font-size:11.5px}
+h3{margin:0 0 6px;font-size:14px;color:#d9a227}
+#ver{position:fixed;left:50%;transform:translateX(-50%);bottom:6px;font-size:11px;color:#111;background:#fff8;border-radius:6px;padding:2px 6px;z-index:3}
+#load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#1a1c20;color:#d9a227;font-size:16px;z-index:9}
+#joy{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;background:#0003;border:2px solid #fff5;display:none;z-index:4;pointer-events:none}
+#knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#d9a227cc}
+#hint{position:fixed;left:14px;bottom:30px;color:#fffb;font-size:12px;z-index:2;pointer-events:none;text-shadow:0 1px 2px #000}
+.act{position:fixed;z-index:4;border-radius:50%;width:72px;height:72px;justify-content:center;font-weight:600}
+#jumpB{right:16px;bottom:34px}#runB{right:98px;bottom:22px;width:58px;height:58px}
+</style></head><body>
+<div id="ui">
+ <div class="grp" id="tools"><button class="b on" data-t="none">Mirar</button><button class="b" data-t="dig">Excavar</button><button class="b" data-t="add">Rellenar</button><button class="b" data-t="ins">Inspeccionar</button></div>
+ <button class="b" id="camB">3ª persona</button>
+ <button class="b" id="menuB">Menú</button>
+ <div id="more">
+  <div class="grp" id="sty"><button class="b on" data-s="1">Suave</button><button class="b" data-s="0">Cubos</button></div>
+  <button class="b" id="cutB">Corte: no</button>
+  <label class="b" id="cutL" style="display:none">Corte <input id="cut" type="range" min="8" max="184" value="96"></label>
+  <label class="b">Pincel <input id="rad" type="range" min="1" max="6" step=".5" value="2.5"><span id="radV"></span></label>
+  <button class="b" id="legB">Capas y novedades</button>
+  <button class="b" id="seedB">Nuevo terreno</button>
+  <button class="b" id="spawnB">Reaparecer</button>
+  <button class="b" id="anatB">Anatomía: Piel</button>
+  <label class="b">Grasa corporal <input id="bf" type="range" min="6" max="35" value="15"><span id="bfV">15 %</span></label>
+ </div>
+</div>
+<div id="info" class="pan"></div>
+<div id="leg" class="pan"></div>
+<div id="joy"><div id="knob"></div></div>
+<div id="hint">Toca y arrastra aquí para caminar</div>
+<button class="b act" id="runB">Correr</button><button class="b act" id="jumpB">Saltar</button>
+<div id="ver">Suelo vóxel v0.12 · <span id="fps">–</span> FPS</div>
+<div id="load">Generando suelo y personaje…</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+/* ===== Mundo: 1 vóxel = 25 cm. 192×192×80 vóxeles = 48 × 48 × 20 m ===== */
+const VS=.25,NX=192,NZ=192,NY=80,C=32,CX=NX/C,CZ=NZ/C,CY=Math.ceil(NY/C),SY=NX*NZ,WL=5.1,DS=40;
+const D=new Int8Array(NX*NY*NZ),M=new Uint8Array(NX*NY*NZ),H=new Float32Array(NX*NZ);
+const MAT=[
+ {n:'Aire (excavado)',c:0x000000,f:1,k:0},
+ {n:'O — Hojarasca / mantillo',c:0x4a3a22,f:9,k:.35,d:'Restos de hojas y raíces en descomposición. En la realidad mide 2–10 cm; aquí ocupa 1 vóxel (25 cm), el mínimo posible.'},
+ {n:'A — Suelo superficial negro',c:0x2b2018,f:6,k:.25,d:'Mineral mezclado con mucha materia orgánica. Negro por el humus, típico de los Andisoles (suelos de ceniza volcánica) andinos. 20–80 cm. Aquí viven casi todas las raíces.'},
+ {n:'Tefra — Ceniza volcánica enterrada',c:0xb9ae96,f:11,k:.15,d:'Capa clara de ceniza de una erupción antigua, sepultada por el suelo posterior. Aparece en parches.'},
+ {n:'E — Horizonte eluvial (lavado)',c:0x9a8e79,f:6,k:.2,d:'El agua que baja le quita arcilla, hierro y humus; por eso es más claro. Solo en parches.'},
+ {n:'B — Subsuelo (iluvial)',c:0x8b4a27,f:4,k:.3,d:'Acumula la arcilla y los óxidos de hierro que bajan de arriba; color rojizo con moteados. 50–150 cm.'},
+ {n:'C — Saprolito (roca meteorizada)',c:0xa88a5e,f:3,k:.45,d:'Roca descompuesta y blanda con fragmentos; las raíces casi no llegan. 0,5–3 m.'},
+ {n:'R — Roca madre',c:0x5e5f63,f:2,k:.35,d:'Roca dura sin meteorizar, el origen mineral del suelo. Aflora donde la pendiente es fuerte.'},
+ {n:'Arena aluvial',c:0xc8b283,f:20,k:.15,d:'Depositada por el río en las zonas bajas.'},
+ {n:'Grava aluvial',c:0x7e7365,f:14,k:.5,d:'Cantos rodados bajo la arena del río.'}];
+const MC=new Float32Array(MAT.length*3);MAT.forEach((m,i)=>{const c=new THREE.Color(m.c);MC[i*3]=c.r;MC[i*3+1]=c.g;MC[i*3+2]=c.b});
+const cl=(v,a,b)=>v<a?a:v>b?b:v;
+/* ===== Ruido ===== */
+let SEED=1;
+function h2(x,z){let h=Math.imul(x,374761393)^Math.imul(z,668265263)^Math.imul(SEED,1442695041);h=Math.imul(h^h>>>13,1274126177);return((h^h>>>16)>>>0)/4294967296}
+function vn2(x,z){const ix=Math.floor(x),iz=Math.floor(z);let fx=x-ix,fz=z-iz;fx=fx*fx*(3-2*fx);fz=fz*fz*(3-2*fz);const a=h2(ix,iz),b=h2(ix+1,iz),c=h2(ix,iz+1),d=h2(ix+1,iz+1);return a+(b-a)*fx+(c-a)*fz+(a-b-c+d)*fx*fz}
+function fbm(x,z,o){let s=0,a=.5,t=0;for(let i=0;i<o;i++){s+=a*vn2(x,z);t+=a;x*=2.03;z*=2.03;a*=.5}return s/t}
+function hAt(x,z){let h=3.5+12*Math.pow(fbm(x/16,z/16,5),1.4);const dv=x-(24+6*Math.sin(z/9+SEED));h-=4.5*Math.exp(-dv*dv/22);return cl(h,1.5,NY*VS-2)}
+/* ===== Perfil (catena: suelo profundo en zonas planas/bajas, delgado en pendientes) ===== */
+function gen(){
+ for(let z=0;z<NZ;z++)for(let x=0;x<NX;x++)H[x+z*NX]=hAt((x+.5)*VS,(z+.5)*VS);
+ const L=[];
+ for(let z=0;z<NZ;z++)for(let x=0;x<NX;x++){
+  const h=H[x+z*NX],X=x*VS,Z=z*VS;
+  const gx=(H[Math.min(x+1,NX-1)+z*NX]-H[Math.max(x-1,0)+z*NX])/(2*VS),gz=(H[x+Math.min(z+1,NZ-1)*NX]-H[x+Math.max(z-1,0)*NX])/(2*VS);
+  const sl=Math.hypot(gx,gz),n2=fbm(X/6+50,Z/6,3),f=cl(1.2-sl,0,1.1)*(.8+.4*n2);L.length=0;
+  if(h<WL+.6)L.push(8,.5+.3*n2,9,.5);
+  else{if(f>.3)L.push(1,.25);L.push(2,.75*f);
+   if(f>.35&&fbm(X/8+9,Z/8+3,2)>.55)L.push(3,.3);
+   if(f>.4&&fbm(X/7+21,Z/7+40,2)>.58)L.push(4,.3*f);
+   L.push(5,1.3*f)}
+  L.push(6,1.4*f+.5+.9*fbm(X/5+70,Z/5+11,3));
+  for(let y=0;y<NY;y++){const i=x+z*NX+y*SY,dep=h-(y+.5)*VS;D[i]=cl(Math.round(dep/VS*DS),-127,127);
+   if(dep<=0){M[i]=0;continue}let a=0,m=7;for(let k=0;k<L.length;k+=2){a+=L[k+1];if(dep<a){m=L[k];break}}M[i]=m}
+ }
+}
+let cutOn=false,cutX=96,smooth=true;
+function den(x,y,z){if(x<0||z<0||y<0||x>=NX||z>=NZ||y>=NY||(cutOn&&x>=cutX))return -127;return D[x+z*NX+y*SY]}
+/* densidad continua (trilineal) en metros: >0 = sólido. Coincide con la superficie suave */
+function dAt(px,py,pz){const u=px/VS-.5,v=py/VS-.5,w=pz/VS-.5,x=Math.floor(u),y=Math.floor(v),z=Math.floor(w),fx=u-x,fy=v-y,fz=w-z;
+ const a=den(x,y,z)+(den(x+1,y,z)-den(x,y,z))*fx,b=den(x,y+1,z)+(den(x+1,y+1,z)-den(x,y+1,z))*fx,c=den(x,y,z+1)+(den(x+1,y,z+1)-den(x,y,z+1))*fx,d=den(x,y+1,z+1)+(den(x+1,y+1,z+1)-den(x,y+1,z+1))*fx;
+ const e=a+(b-a)*fy,f=c+(d-c)*fy;return e+(f-e)*fz}
+const solid=(x,y,z)=>dAt(x,y,z)>0;
+/* ===== Three ===== */
+const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);document.body.prepend(R.domElement);
+const S=new THREE.Scene();S.background=new THREE.Color(0xaec3d1);
+const cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.05,400);
+const SH=new THREE.ShaderMaterial({vertexColors:true,side:THREE.DoubleSide,
+ uniforms:{sun:{value:new THREE.Vector3(.45,.8,.35).normalize()},fogC:{value:new THREE.Color(0xaec3d1)},fogN:{value:60},fogF:{value:160}},
+ vertexShader:`attribute vec3 gt;varying vec3 vC,vN,vW,vG;void main(){vC=color;vN=mat3(modelMatrix)*normal;vG=gt;vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+ fragmentShader:`precision highp float;uniform vec3 sun,fogC;uniform float fogN,fogF;varying vec3 vC,vN,vW,vG;
+float h3(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float vn(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
+void main(){vec3 n=normalize(vN);vec3 p=vW;vec3 c=vC;
+if(vG.z>0.){float m=vn(p*vG.y)*.6+vn(p*vG.y*2.7+7.)*.4;c*=1.+(m-.5)*2.*vG.z;}
+float g=vG.x*smoothstep(.55,.85,n.y);vec3 gr=mix(vec3(.2,.33,.1),vec3(.36,.45,.16),vn(p*2.5));
+c=mix(c,gr*(.75+.5*vn(p*16.)),g);
+if(vG.z<0.){float nl=dot(n,sun),w=clamp((nl+.4)/1.4,0.,1.);vec3 v=normalize(cameraPosition-p);c*=.34+.2*n.y+.8*w;c+=vec3(.09,.025,.0)*w*(1.-w)*1.6;c+=.06*pow(max(dot(reflect(-sun,n),v),0.),18.);}else c*=.38+.22*n.y+.85*max(dot(n,sun),0.);
+gl_FragColor=vec4(mix(c,fogC,smoothstep(fogN,fogF,distance(p,cameraPosition))),1.);}`});
+const water=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x3d6f8a,transparent:true,opacity:.55,depthWrite:false,side:THREE.DoubleSide}));
+water.rotation.x=-Math.PI/2;S.add(water);
+function placeWater(){const w=(cutOn?cutX:NX)*VS;water.scale.set(w,NZ*VS,1);water.position.set(w/2,WL,NZ*VS/2)}
+const marker=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xd9a227,wireframe:true,transparent:true,opacity:.6}));marker.visible=false;S.add(marker);
+/* ===== Chunks del terreno ===== */
+const CH=[];for(let y=0;y<CY;y++)for(let z=0;z<CZ;z++)for(let x=0;x<CX;x++)CH.push({x,y,z,mesh:null,dirty:true});
+function dirtyRange(x0,y0,z0,x1,y1,z1){for(let cy=Math.max(0,Math.floor(y0/C));cy<=Math.min(CY-1,Math.floor(y1/C));cy++)for(let cz=Math.max(0,Math.floor(z0/C));cz<=Math.min(CZ-1,Math.floor(z1/C));cz++)for(let cx=Math.max(0,Math.floor(x0/C));cx<=Math.min(CX-1,Math.floor(x1/C));cx++)CH[cx+CX*(cz+CZ*cy)].dirty=true}
+const allDirty=()=>CH.forEach(c=>c.dirty=true);
+function geo(P,N,Co,G,I){if(!I.length)return null;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));g.setAttribute('color',new THREE.Float32BufferAttribute(Co,3));g.setAttribute('gt',new THREE.Float32BufferAttribute(G,3));g.setIndex(P.length/3>65535?new THREE.Uint32BufferAttribute(I,1):new THREE.Uint16BufferAttribute(I,1));return g}
+const W=C+1,VID=new Int32Array(W*W*W),dd=new Float32Array(8),ED=[0,1,2,3,4,5,6,7,0,2,1,3,4,6,5,7,0,4,1,5,2,6,3,7];
+function meshSN(ch){
+ const x0=ch.x*C,y0=ch.y*C,z0=ch.z*C,P=[],N=[],Co=[],G=[],I=[];VID.fill(-1);
+ for(let k=0;k<W;k++)for(let j=0;j<W;j++)for(let i=0;i<W;i++){
+  const x=x0-1+i,y=y0-1+j,z=z0-1+k;let mask=0;
+  for(let c=0;c<8;c++){const v=den(x+(c&1),y+(c>>1&1),z+(c>>2&1));dd[c]=v;if(v>0)mask|=1<<c}
+  if(mask===0||mask===255)continue;
+  let px=0,py=0,pz=0,n=0;
+  for(let e=0;e<24;e+=2){const a=ED[e],b=ED[e+1],da=dd[a],db=dd[b];if((da>0)!==(db>0)){const t=da/(da-db);px+=(a&1)+((b&1)-(a&1))*t;py+=(a>>1&1)+((b>>1&1)-(a>>1&1))*t;pz+=(a>>2&1)+((b>>2&1)-(a>>2&1))*t;n++}}
+  let gx=dd[1]-dd[0]+dd[3]-dd[2]+dd[5]-dd[4]+dd[7]-dd[6],gy=dd[2]-dd[0]+dd[3]-dd[1]+dd[6]-dd[4]+dd[7]-dd[5],gz=dd[4]-dd[0]+dd[5]-dd[1]+dd[6]-dd[2]+dd[7]-dd[3];
+  let gl=Math.hypot(gx,gy,gz);if(gl<1e-6){gx=0;gy=-1;gz=0;gl=1}
+  let r=0,g=0,b=0,gr=0,fr=0,kt=0,s=0;
+  for(let c=0;c<8;c++)if(dd[c]>0){const m=M[(x+(c&1))+(z+(c>>2&1))*NX+(y+(c>>1&1))*SY];r+=MC[m*3];g+=MC[m*3+1];b+=MC[m*3+2];gr+=m===1;fr+=MAT[m].f;kt+=MAT[m].k;s++}
+  VID[i+W*(j+W*k)]=P.length/3;
+  P.push((x+px/n+.5)*VS,(y+py/n+.5)*VS,(z+pz/n+.5)*VS);N.push(-gx/gl,-gy/gl,-gz/gl);Co.push(r/s,g/s,b/s);G.push(gr/s,fr/s,kt/s);
+ }
+ const q=(a,b,c,d)=>{a=VID[a];b=VID[b];c=VID[c];d=VID[d];if(a>=0&&b>=0&&c>=0&&d>=0)I.push(a,b,c,a,c,d)},WW=W*W;
+ for(let w=0;w<C;w++)for(let v=0;v<C;v++)for(let u=0;u<C;u++){
+  const x=x0+u,y=y0+v,z=z0+w,s0=den(x,y,z)>0,o=(u+1)+W*((v+1)+W*(w+1));
+  if(s0!==(den(x+1,y,z)>0))q(o,o-W,o-W-WW,o-WW);
+  if(s0!==(den(x,y+1,z)>0))q(o,o-1,o-1-WW,o-WW);
+  if(s0!==(den(x,y,z+1)>0))q(o,o-1,o-1-W,o-W);
+ }
+ return geo(P,N,Co,G,I);
+}
+const FACES=[[1,0,0,[1,0,0,1,1,0,1,1,1,1,0,1]],[-1,0,0,[0,0,1,0,1,1,0,1,0,0,0,0]],[0,1,0,[0,1,0,0,1,1,1,1,1,1,1,0]],[0,-1,0,[0,0,0,1,0,0,1,0,1,0,0,1]],[0,0,1,[0,0,1,1,0,1,1,1,1,0,1,1]],[0,0,-1,[0,0,0,0,1,0,1,1,0,1,0,0]]];
+function meshCube(ch){
+ const x0=ch.x*C,y0=ch.y*C,z0=ch.z*C,P=[],N=[],Co=[],G=[],I=[];
+ for(let y=y0;y<Math.min(y0+C,NY);y++)for(let z=z0;z<z0+C;z++)for(let x=x0;x<x0+C;x++){
+  if(den(x,y,z)<=0)continue;const m=M[x+z*NX+y*SY];
+  for(const F of FACES){if(den(x+F[0],y+F[1],z+F[2])>0)continue;const b=P.length/3,v=F[3];
+   for(let t=0;t<12;t+=3){P.push((x+v[t])*VS,(y+v[t+1])*VS,(z+v[t+2])*VS);N.push(F[0],F[1],F[2]);Co.push(MC[m*3],MC[m*3+1],MC[m*3+2]);G.push(m===1?1:0,MAT[m].f,MAT[m].k)}
+   I.push(b,b+1,b+2,b,b+2,b+3)}
+ }
+ return geo(P,N,Co,G,I);
+}
+function build(ch){const g=smooth?meshSN(ch):meshCube(ch);if(ch.mesh){S.remove(ch.mesh);ch.mesh.geometry.dispose();ch.mesh=null}if(g){ch.mesh=new THREE.Mesh(g,SH);S.add(ch.mesh)}ch.dirty=false}
+
+/* ===== PERSONAJE ANATÓMICO: cada capa es un campo de vóxeles + Surface Nets =====
+   Capas: piel (visible), ojos (visibles), músculos, esqueleto y órganos (ocultos; ya existen con nombre). */
+const len=(x,y,z)=>Math.sqrt(x*x+y*y+z*z);
+const sph=(x,y,z,cx,cy,cz,r)=>len(x-cx,y-cy,z-cz)-r;
+function cap(x,y,z,ax,ay,az,bx,by,bz,r){const px=x-ax,py=y-ay,pz=z-az,ex=bx-ax,ey=by-ay,ez=bz-az,h=cl((px*ex+py*ey+pz*ez)/(ex*ex+ey*ey+ez*ez),0,1);return len(px-ex*h,py-ey*h,pz-ez*h)-r}
+function rbox(x,y,z,cx,cy,cz,hx,hy,hz,r){const qx=Math.abs(x-cx)-hx,qy=Math.abs(y-cy)-hy,qz=Math.abs(z-cz)-hz;return len(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0)-r}
+function ell(x,y,z,cx,cy,cz,rx,ry,rz){const px=(x-cx)/rx,py=(y-cy)/ry,pz=(z-cz)/rz,k0=Math.sqrt(px*px+py*py+pz*pz),k1=Math.sqrt(px*px/(rx*rx)+py*py/(ry*ry)+pz*pz/(rz*rz));return k1>1e-9?k0*(k0-1)/k1:-Math.min(rx,ry,rz)}
+function smin(a,b,k){const h=Math.max(k-Math.abs(a-b),0)/k;return Math.min(a,b)-h*h*k*.25}
+/* piezas con nombre (para usarlas después: daño, heridas, medicina…) */
+const it=(n,c,cx,cy,cz,R,d)=>({n,c,cx,cy,cz,R,d});
+const E=(n,c,cx,cy,cz,rx,ry,rz)=>it(n,c,cx,cy,cz,Math.max(rx,ry,rz),(x,y,z)=>ell(x,y,z,cx,cy,cz,rx,ry,rz));
+const Cp=(n,c,ax,ay,az,bx,by,bz,r)=>it(n,c,(ax+bx)/2,(ay+by)/2,(az+bz)/2,len(bx-ax,by-ay,bz-az)/2+r,(x,y,z)=>cap(x,y,z,ax,ay,az,bx,by,bz,r));
+const Bx=(n,c,cx,cy,cz,hx,hy,hz,r)=>it(n,c,cx,cy,cz,len(hx,hy,hz)+r,(x,y,z)=>rbox(x,y,z,cx,cy,cz,hx,hy,hz,r));
+const Sh=(o,t,cut)=>it(o.n,o.c,o.cx,o.cy,o.cz,o.R+t,(x,y,z)=>{const d=Math.abs(o.d(x,y,z))-t;return cut?Math.max(d,cut(x,y,z)):d});
+let LID=0;
+function lsd(L,x,y,z){let m=1e9,id=0;for(let i=0;i<L.length;i++){const o=L[i];if(len(x-o.cx,y-o.cy,z-o.cz)-o.R>=m)continue;const d=o.d(x,y,z);if(d<m){m=d;id=i}}LID=id;return m}
+function layer(L){let a=[9,9,9],b=[-9,-9,-9];for(const o of L){a=[Math.min(a[0],o.cx-o.R),Math.min(a[1],o.cy-o.R),Math.min(a[2],o.cz-o.R)];b=[Math.max(b[0],o.cx+o.R),Math.max(b[1],o.cy+o.R),Math.max(b[2],o.cz+o.R)]}
+ /* rejilla de aceleración: cada celda guarda solo las piezas cercanas */
+ const g=.03,mg=.02,nx=Math.ceil((b[0]-a[0])/g)+1,ny=Math.ceil((b[1]-a[1])/g)+1,nz=Math.ceil((b[2]-a[2])/g)+1,G=new Array(nx*ny*nz);
+ for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const cx=a[0]+(i+.5)*g,cy=a[1]+(j+.5)*g,cz=a[2]+(k+.5)*g,r=g*.87+mg,A=[];for(const o of L)if(len(cx-o.cx,cy-o.cy,cz-o.cz)<o.R+r)A.push(o);G[i+nx*(j+ny*k)]=A}
+ const q=(x,y,z)=>{const i=Math.floor((x-a[0])/g),j=Math.floor((y-a[1])/g),k=Math.floor((z-a[2])/g);return(i<0||j<0||k<0||i>=nx||j>=ny||k>=nz)?L:G[i+nx*(j+ny*k)]};
+ const sd=(x,y,z)=>{const A=q(x,y,z);if(!A.length){LID=0;return mg}let m=1e9,id=0;for(const o of A){if(len(x-o.cx,y-o.cy,z-o.cz)-o.R>=m)continue;const d=o.d(x,y,z);if(d<m){m=d;id=o._i}}LID=id;return Math.min(m,mg)};
+ L.forEach((o,i)=>o._i=i);
+ return{b0:a.map(v=>v-.02),b1:b.map(v=>v+.02),items:L,sdf:sd,col:(x,y,z)=>{sd(x,y,z);return L[LID].c}}}
+const PIEL=0xc68c63,PELO=0x24170e,LABIO=0xa8665a,BOXER=0x22324f,BANDA=0xe6e6e6,HUESO=0xe8dfc8,DIENTE=0xf6f3ea,MUSC=0xa83a32,TEND=0xd9c7b0;
+function musT(){const L=musAtlasTorso().concat([Bx('Línea alba',TEND,0,1.13,.084,.003,.12,.003,.002)]);return layer(L)}
+
+/* ---- PIEL POR CAPAS: hueso → músculo → grasa subcutánea (grosor por región) → dermis (2 mm) ---- */
+function smax(a,b,k){return -smin(-a,-b,k)}
+function hh3(x,y,z){let h=Math.imul(x,374761393)^Math.imul(y,668265263)^Math.imul(z,1440662683);h=Math.imul(h^h>>>13,1274126177);return((h^h>>>16)>>>0)/4294967296}
+function vn3(x,y,z){const ix=Math.floor(x),iy=Math.floor(y),iz=Math.floor(z);let fx=x-ix,fy=y-iy,fz=z-iz;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);fz=fz*fz*(3-2*fz);
+ const l=(a,b,t)=>a+(b-a)*t,c=(i,j,k)=>hh3(ix+i,iy+j,iz+k);return l(l(l(c(0,0,0),c(1,0,0),fx),l(c(0,1,0),c(1,1,0),fx),fy),l(l(c(0,0,1),c(1,0,1),fx),l(c(0,1,1),c(1,1,1),fx),fy),fz)}
+const RGB=h=>[(h>>16&255)/255,(h>>8&255)/255,(h&255)/255],mixc=(a,b,t)=>(t=cl(t,0,1),[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]);
+const gs=(x,y,z,cx,cy,cz,r)=>Math.exp(-((x-cx)**2+(y-cy)**2+(z-cz)**2)/(r*r));
+const SK=RGB(0xc48a62),SKR=RGB(0xc9705a),SKP=RGB(0xd9a585),HAIR=RGB(0x1e140c),LIP=RGB(0xa45f52),STUB=RGB(0x7d6352),NAIL=RGB(0xe6c2b2),BOX=RGB(BOXER),BAN=RGB(BANDA),FATC=[RGB(0xf2dc96),RGB(0xe2b24a)];
+function pores(c,x,y,z){const n=vn3(x*110,y*110,z*110)*.6+vn3(x*380,y*380,z*380)*.4,k=1+(n-.5)*.1;return[c[0]*k,c[1]*k,c[2]*k]}
+/* músculo fusiforme: grueso en el vientre, delgado (tendón) en los extremos */
+const Fu=(n,c,ax,ay,az,bx,by,bz,r)=>{const ex=bx-ax,ey=by-ay,ez=bz-az,L2=ex*ex+ey*ey+ez*ez;return it(n,c,(ax+bx)/2,(ay+by)/2,(az+bz)/2,Math.sqrt(L2)/2+r,(x,y,z)=>{const px=x-ax,py=y-ay,pz=z-az,t=cl((px*ex+py*ey+pz*ez)/L2,0,1);return len(px-ex*t,py-ey*t,pz-ez*t)-r*(.35+.65*Math.pow(Math.sin(Math.PI*t),.6))})};
+function lsmin(L,x,y,z,k){let m=1e9;for(const o of L){if(len(x-o.cx,y-o.cy,z-o.cz)-o.R>m+k)continue;m=smin(m,o.d(x,y,z),k)}return m}
+let FAT=1;const DERM=.002; /* FAT=1 ≈ 15 % de grasa corporal */
+/* ===== TRONCO ===== */
+function torsoMus(){const L=[];for(const s of[1,-1])L.push(
+ E('Pectoral mayor',MUSC,s*.065,1.32,.066,.068,.052,.022),Fu('Pectoral mayor',MUSC,s*.04,1.3,.072,s*.165,1.37,.02,.022),
+ E('Deltoides',MUSC,s*.188,1.365,-.008,.048,.07,.055),Fu('Trapecio superior',MUSC,s*.02,1.53,-.045,s*.165,1.45,-.02,.026),
+ Fu('Dorsal ancho',MUSC,s*.06,1.05,-.072,s*.15,1.33,-.03,.03),E('Serrato anterior',MUSC,s*.118,1.24,.04,.025,.06,.035),
+ E('Recto abdominal',MUSC,s*.028,1.12,.068,.028,.13,.015),E('Oblicuo externo',MUSC,s*.1,1.1,.035,.035,.1,.05),
+ Fu('Erector de la columna',MUSC,s*.028,.97,-.068,s*.03,1.42,-.068,.024),E('Glúteo mayor',MUSC,s*.072,.925,-.05,.07,.08,.046),
+ E('Glúteo medio',MUSC,s*.115,.99,-.02,.045,.05,.045),Fu('Esternocleidomastoideo',MUSC,s*.045,1.585,-.02,s*.012,1.45,.035,.012));
+ L.push(E('Trapecio medio e inferior',MUSC,0,1.36,-.062,.09,.1,.02));return L}
+function torsoShape(){const L=torsoMus();
+ L.push(E('·cintura escapular',0,0,1.405,-.012,.16,.05,.072),E('·tórax superior',0,0,1.37,0,.13,.075,.08),E('·tórax',0,0,1.29,-.008,.125,.14,.083),E('·abdomen',0,0,1.1,.008,.105,.11,.068),E('·pelvis',0,0,.965,-.015,.125,.08,.07),Cp('·cuello',0,0,1.43,-.015,0,1.56,-.02,.042),Bx('·esternón',0,0,1.3,.08,.012,.08,.004,.003));
+ for(const s of[1,-1])L.push(Cp('·clavícula',0,s*.018,1.445,.068,s*.155,1.462,.012,.0075),E('·acromion',0,s*.17,1.455,-.005,.012,.012,.012),Cp('·cresta ilíaca',0,s*.12,1.01,-.04,s*.105,.98,.055,.01),E('·escápula',0,s*.09,1.33,-.08,.042,.058,.012));
+ return L}
+function fatT(x,y,z){let f=.003+.009*gs(x,y,z,0,1.05,.08,.08)+.004*gs(x,y,z,0,1.0,-.09,.08);for(const s of[1,-1])f+=.007*gs(x,y,z,s*.13,1.0,0,.06)+.007*gs(x,y,z,s*.075,.9,-.09,.06)+.003*gs(x,y,z,s*.07,1.3,.09,.05);return f}
+const TSH=torsoShape(),tBase=(x,y,z)=>lsmin(TSH,x,y,z,.03)-FAT*fatT(x,y,z);
+let NAV=.1,SPN=[];
+function grooves(){const sz=(x,y,z0,dz)=>{let z=z0;for(let i=0;i<300;i++){if(tBase(x,y,z)-DERM<0)return z;z+=dz}return z};
+ NAV=sz(0,1.06,.25,-.001);SPN=[1.42,1.32,1.22,1.12,1.02].map(y=>[y,sz(0,y,-.25,.001)])}
+function sdTorso(x,y,z){let d=tBase(x,y,z)-DERM;d=smax(d,-sph(x,y,z,0,1.06,NAV+.002,.0065),.003);
+ for(let i=0;i<4;i++)d=smax(d,-cap(x,y,z,0,SPN[i][0],SPN[i][1]-.002,0,SPN[i+1][0],SPN[i+1][1]-.002,.0065),.005);return d}
+function sdBody(x,y,z){let a=1e9,b=1e9;if(y>1.38)a=sdHead(x,y,z);if(y<1.57)b=sdTorso(x,y,z);return smin(a,b,.03)}
+function colBody(x,y,z){const ax=Math.abs(x);let c=SK;
+ if(y<1.0)return y>.976?BAN:pores(BOX,x*.3,y*.3,z*.3);
+ if(y>1.5){
+  const yH=1.70-.12*cl((.04-z)/.12,0,1);
+  if(y>yH&&ell(x,y,z,0,1.672,-.016,.079,.097,.1)<ell(x,y,z,0,1.655,-.008,.074,.1,.095)+.002&&!(ax>.072&&y<1.665&&z>-.03)){const n=vn3(x*500,y*80,z*500);return[HAIR[0]*(.7+.6*n),HAIR[1]*(.7+.6*n),HAIR[2]*(.7+.6*n)]}
+  if(z>.06&&ax>.012&&ax<.056&&Math.abs(y-(1.666-14*(ax-.032)**2))<.0042)return HAIR;
+  if(ell(x,y,z,0,1.5685,.086,.021,.0105,.012)<.001)return LIP;
+  c=mixc(c,SKR,.35*Math.max(gs(x,y,z,.045,1.605,.075,.02),gs(x,y,z,-.045,1.605,.075,.02))+.3*gs(x,y,z,0,1.607,.118,.012)+(ax>.07&&y>1.6&&y<1.665?.25:0));
+  if(y<1.592&&z>0)c=mixc(c,STUB,.14*cl((1.592-y)/.02,0,1));
+  for(const s of[1,-1])c=mixc(c,RGB(0x8a5a44),.35*gs(x,y,z,s*.032,1.638,.088,.012)*(1-gs(x,y,z,s*.032,1.638,.088,.006)))}
+ else{for(const s of[1,-1]){const r=Math.hypot(x-s*.072,y-1.3);if(z>.06&&r<.011)c=mixc(c,RGB(0x9a6450),r<.004?.8:.55)}c=mixc(c,SKR,.12*gs(x,y,z,0,1.45,.06,.05))}
+ return pores(c,x,y,z)}
+const SKIN_HEAD={b0:[-.105,1.52,-.125],b1:[.105,1.785,.135],sdf:sdBody,col:colBody,skin:1};
+const SKIN_TORSO={b0:[-.26,.82,-.13],b1:[.26,1.575,.125],sdf:sdBody,col:colBody,skin:1};
+const fatCol=t=>mixc(FATC[0],FATC[1],t/.014);
+const FAT_TORSO={b0:[-.26,.82,-.13],b1:[.26,1.52,.125],sdf:tBase,col:(x,y,z)=>fatCol(FAT*fatT(x,y,z))};
+const EYES={b0:[-.05,1.62,.055],b1:[.05,1.656,.09],
+ sdf:(x,y,z)=>Math.min(sph(x,y,z,.032,1.638,.072,.0125),sph(x,y,z,-.032,1.638,.072,.0125)),
+ col(x,y,z){const cx=x>0?.032:-.032,r=Math.hypot(x-cx,y-1.638);if(z>.079){if(r<.0042)return 0x080605;if(r<.0075){const a=Math.atan2(y-1.638,x-cx),n=.75+.35*vn3(Math.cos(a)*8+50,Math.sin(a)*8,r*900);return[.29*n,.17*n,.09*n]}}return z>.07?0xf2efe8:0xe6c9c0}};
+/* ===== EXTREMIDADES (marco local de cada articulación; s=+1 izquierda, −1 derecha; palma hacia −s·x, pulgar hacia +z) ===== */
+const FING=[[.026,.06],[.009,.067],[-.009,.062],[-.026,.05]];
+const LIMB={
+ ua:{mus:s=>[E('Deltoides',MUSC,0,-.045,0,.05,.075,.052),Fu('Bíceps braquial',MUSC,0,-.05,.022,0,-.25,.02,.024),Fu('Braquial',MUSC,0,-.14,.008,0,-.27,.012,.02),Fu('Tríceps braquial',MUSC,0,-.04,-.02,0,-.27,-.022,.03),E('Tríceps (cabeza lateral)',MUSC,s*.016,-.12,-.018,.02,.06,.02),Fu('Coracobraquial',MUSC,-s*.012,-.02,.01,-s*.012,-.15,.005,.012)],
+  lm:s=>[Cp('·húmero',0,0,-.02,0,0,-.27,0,.012),E('·epicóndilos',0,0,-.283,0,.024,.012,.014),E('·olécranon',0,0,-.29,-.022,.012,.012,.012)],
+  fat:s=>(x,y,z)=>.003+.006*gs(x,y,z,0,-.15,-.04,.07)-.0015*gs(x,y,z,0,-.29,-.02,.03),b0:[-.075,-.262,-.075],b1:[.075,.06,.075],k:.025},
+ fa:{mus:s=>[Fu('Braquiorradial',MUSC,s*.008,.04,.018,s*.004,-.2,.012,.018),Fu('Flexores del antebrazo',MUSC,-s*.012,-.01,0,-s*.008,-.2,0,.022),Fu('Extensores del antebrazo',MUSC,s*.012,-.01,-.005,s*.008,-.2,-.002,.02)],
+  lm:s=>[Cp('·cúbito',0,0,0,-.018,0,-.245,-.012,.008),E('·muñeca',0,0,-.245,0,.015,.018,.024),Cp('·antebrazo',0,0,0,0,0,-.24,0,.02),E('·codo',0,0,0,-.006,.03,.03,.032)],
+  fat:s=>()=>.0025,b0:[-.06,-.45,-.065],b1:[.06,.06,.09],k:.018},
+ th:{mus:s=>[Fu('Recto femoral',MUSC,0,-.04,.035,0,-.4,.035,.03),Fu('Vasto lateral',MUSC,s*.035,-.06,.005,s*.025,-.38,.015,.04),E('Vasto medial',MUSC,-s*.03,-.34,.03,.03,.065,.03),Fu('Aductores',MUSC,-s*.03,-.02,0,-s*.02,-.3,0,.04),Fu('Isquiotibiales',MUSC,0,-.04,-.035,0,-.38,-.03,.036),Fu('Sartorio',MUSC,s*.05,0,.04,-s*.03,-.4,0,.009),Fu('Tensor de la fascia lata',MUSC,s*.065,.05,.02,s*.06,-.08,.01,.018)],
+  lm:s=>[E('·trocánter',0,s*.045,-.05,0,.018,.018,.018),Cp('·tracto iliotibial',0,s*.06,-.05,0,s*.045,-.42,0,.008),E('·cóndilos',0,0,-.425,0,.032,.02,.028),Cp('·fémur',0,s*.028,-.05,0,0,-.415,0,.016),E('·rodilla',0,0,-.395,0,.043,.035,.043)],
+  fat:s=>(x,y,z)=>.005+.005*gs(x,y,z,s*.06,-.1,0,.08)+.004*gs(x,y,z,-s*.04,-.08,0,.06)+.004*gs(x,y,z,0,-.02,-.05,.06)-.003*gs(x,y,z,0,-.43,.03,.04),b0:[-.11,-.402,-.11],b1:[.11,.13,.11],k:.026},
+ sh:{mus:s=>[E('Gastrocnemio (cabeza medial)',MUSC,-s*.016,-.14,-.028,.034,.09,.036),E('Gastrocnemio (cabeza lateral)',MUSC,s*.018,-.12,-.026,.029,.075,.031),Fu('Sóleo',MUSC,0,-.08,-.018,0,-.34,-.024,.036),Fu('Tibial anterior',MUSC,s*.017,-.05,.016,s*.006,-.36,.018,.02),Fu('Peroneos',MUSC,s*.03,-.05,-.005,s*.022,-.38,-.012,.015)],
+  lm:s=>[E('·rótula',0,0,-.005,.033,.02,.024,.009),Cp('·tendón rotuliano',0,0,-.03,.03,0,-.07,.032,.008),E('·tuberosidad tibial',0,0,-.075,.03,.009,.009,.009),Cp('·tibia',0,0,-.07,.02,-s*.003,-.38,.015,.013),E('·meseta tibial',0,0,-.012,0,.034,.012,.028),Cp('·tendón de Aquiles',0,0,-.3,-.03,0,-.43,-.04,.008),E('·maléolo medial',0,-s*.021,-.41,0,.011,.011,.011),E('·maléolo lateral',0,s*.022,-.425,-.006,.01,.01,.01),Cp('·tobillo',0,0,-.33,0,0,-.43,0,.018),E('·rodilla',0,0,0,0,.047,.045,.046),Cp('·pierna',0,0,-.03,0,0,-.36,-.005,.03)],
+  fat:s=>(x,y,z)=>Math.max(.0012,.003+.003*gs(x,y,z,0,-.15,-.04,.06)-.0025*gs(x,y,z,-s*.005,-.2,.03,.035)-.002*gs(x,y,z,0,-.005,.04,.03)),b0:[-.075,-.52,-.085],b1:[.075,.06,.16],k:.02}};
+function fingerPath(s,zf,L){const P=[[0,-.338,zf]],A=[.12,.38,.32],F=[.45,.3,.25];let a=0;for(let i=0;i<3;i++){a+=A[i];const p=P[i],l=L*F[i];P.push([p[0]-s*Math.sin(a)*l,p[1]-Math.cos(a)*l,zf])}return P}
+function handSD(s){const FP=FING.map(([f,l])=>fingerPath(s,f,l)),TH=[[-s*.004,-.27,.03],[-s*.012,-.305,.052],[-s*.02,-.332,.06],[-s*.028,-.352,.062]],R=[.0088,.008,.0072];
+ return{FP,TH,d(x,y,z){if(y>-.2)return 1;let h=rbox(x,y,z,0,-.295,-.002,.008,.038,.029,.01);h=smin(h,ell(x,y,z,-s*.008,-.29,.022,.012,.022,.014),.01);h=smin(h,ell(x,y,z,-s*.007,-.315,-.022,.009,.02,.01),.008);
+  for(const P of FP){for(let i=0;i<3;i++)h=smin(h,cap(x,y,z,...P[i],...P[i+1],R[i]),.004);h=smin(h,sph(x,y,z,s*.006,-.338,P[0][2],.009),.006)}
+  for(let i=0;i<3;i++)h=smin(h,cap(x,y,z,...TH[i],...TH[i+1],[.011,.0095,.0085][i]),.005);return h}}}
+function footSD(s){const T=[[-s*.017,.011,.135],[-s*.003,.0075,.128],[s*.008,.007,.124],[s*.017,.0065,.12],[s*.025,.006,.114]];
+ return{T,d(x,y,z){if(y>-.38)return 1;let f=ell(x,y,z,0,-.46,-.03,.025,.025,.032);f=smin(f,ell(x,y,z,0,-.468,.035,.034,.022,.07),.03);f=smax(f,-ell(x,y,z,-s*.032,-.49,.03,.012,.012,.035),.01);
+  for(const[xo,r,zt]of T)f=smin(f,cap(x,y,z,xo,-.476,.095,xo,-.48,zt,r),.006);return f}}}
+/* piel de un segmento = unión suave de músculos y relieves óseos − grasa − dermis (+ mano o pie esculpidos) */
+function limbSkin(seg,s){const g=LIMB[seg],L=g.mus(s).concat(g.lm(s)),fat=g.fat(s),H=seg==='fa'?handSD(s):seg==='sh'?footSD(s):null;
+ const base=(x,y,z)=>lsmin(L,x,y,z,g.k)-FAT*fat(x,y,z);
+ const UP=seg==='fa'?[limbSkin('ua',s).skin.sdf,.29]:seg==='sh'?[limbSkin('th',s).skin.sdf,.43]:null;
+ const P={b0:g.b0,b1:g.b1,skin:1,sdf(x,y,z){let d=base(x,y,z)-DERM;if(H)d=smin(d,H.d(x,y,z),seg==='fa'?.012:.025);if(UP&&y>-.03)d=smin(d,Math.max(UP[0](x,y-UP[1],z),-.004-y),.015);return d}};
+ if(seg==='th')P.col=(x,y,z)=>y>-.18?(y>-.17?pores(BOX,x*.3,y*.3,z*.3):BAN):pores(mixc(SK,SKR,.2*gs(x,y,z,0,-.43,.04,.03)),x,y,z);
+ else if(seg==='ua')P.col=(x,y,z)=>pores(mixc(SK,SKR,.25*gs(x,y,z,0,-.29,-.03,.02)),x,y,z);
+ else if(seg==='fa')P.col=(x,y,z)=>{let c=SK;for(const Q of H.FP){const t=Q[3];if(len(x-t[0],y-t[1],z-t[2])<.013&&s*(x-t[0])>.002)return pores(NAIL,x,y,z);if(gs(x,y,z,s*.008,-.338,Q[0][2],.008)>.3)c=mixc(c,SKR,.3)}
+  const t=H.TH[3];if(len(x-t[0],y-t[1],z-t[2])<.014&&s*(x-t[0])>0)return pores(NAIL,x,y,z);if(-s*x>.006&&y<-.26)c=mixc(c,SKP,.5);return pores(c,x,y,z)};
+ else P.col=(x,y,z)=>{for(const[xo,r,zt]of H.T)if(len(x-xo,y+.474,z-zt+.004)<r*1.1&&y>-.48)return pores(NAIL,x,y,z);let c=SK;if(y<-.484)c=mixc(c,SKP,.6);c=mixc(c,SKR,.25*gs(x,y,z,0,-.005,.05,.025)+.2*gs(x,y,z,0,-.47,-.055,.02));return pores(c,x,y,z)};
+ const F={b0:g.b0,b1:[g.b1[0],seg==='fa'?-.2:seg==='sh'?g.b1[1]:g.b1[1],g.b1[2]],sdf:base,col:(x,y,z)=>fatCol(FAT*fat(x,y,z))};
+ if(seg==='fa')F.b0=[g.b0[0],-.25,g.b0[2]];if(seg==='sh')F.b0=[g.b0[0],-.43,g.b0[2]];
+ return{skin:P,fat:F,mus:layer(g.mus(s))}}
+/* ===================== ATLAS ANATÓMICO =====================
+   Cada pieza tiene nombre propio. Los huesos se cuentan por nombre (206 en el adulto). */
+const SD=(s,f)=>s>0?(f?' izquierda':' izquierdo'):(f?' derecha':' derecho');
+const CART=0xbfd8d2,CARTC=0xa9c9c4;
+const ShM=(n,c,cx,cy,cz,rx,ry,rz,t,mask)=>it(n,c,cx,cy,cz,Math.max(rx,ry,rz)+t,(x,y,z)=>Math.max(Math.abs(ell(x,y,z,cx,cy,cz,rx,ry,rz))-t,mask(x,y,z)));
+const Hole=(o,h)=>it(o.n,o.c,o.cx,o.cy,o.cz,o.R,(x,y,z)=>Math.max(o.d(x,y,z),-h(x,y,z)));
+const Chain=(n,c,P,r)=>{const L=[];for(let i=0;i<P.length-1;i++)L.push(Cp(n,c,...P[i],...P[i+1],r));return L};
+const orbitH=(x,y,z)=>Math.min(sph(x,y,z,.032,1.638,.07,.0185),sph(x,y,z,-.032,1.638,.07,.0185));
+const nasalH=(x,y,z)=>ell(x,y,z,0,1.607,.088,.0105,.016,.02);
+/* arco dental: a=0 al frente, 1,36 atrás */
+const archP=(s,a,y)=>[s*(.005+.025*Math.sin(a)),y,.04+.04*Math.cos(a)];
+const TEETH=[['Incisivo central',.12,[.0042,.0055,.0022]],['Incisivo lateral',.34,[.0036,.005,.0022]],['Canino',.56,[.0038,.006,.0032]],['Primer premolar',.75,[.0034,.0045,.0036]],['Segundo premolar',.92,[.0034,.0045,.0036]],['Primer molar',1.08,[.0048,.0042,.0048]],['Segundo molar',1.23,[.0045,.0041,.0046]],['Tercer molar (muela del juicio)',1.36,[.0042,.004,.0043]]];
+function skullAtlas(){
+ const B=[],T=[],O=[],K=[];
+ const V=[0,1.66,-.008,.069,.088,.09],t=.0032,zc=y=>.015+(y-1.66)*.2,zo=y=>-.06+Math.max(0,1.64-y)*.8;
+ B.push(Hole(ShM('Frontal',HUESO,...V,t,(x,y,z)=>Math.max(zc(y)-z,1.612-y)),orbitH),Cp('Frontal',HUESO,-.045,1.66,.081,.045,1.66,.081,.0055));
+ for(const s of[1,-1]){
+  B.push(ShM('Parietal'+SD(s),HUESO,...V,t,(x,y,z)=>Math.max(z-(zc(y)-.0025),zo(y)+.0025-z,1.64-y,.0015-s*x)));
+  B.push(ShM('Temporal'+SD(s),HUESO,...V,t,(x,y,z)=>Math.max(y-1.6375,.035-s*x,zo(y)+.0025-z,z-zc(y)+.0025)),E('Temporal'+SD(s),HUESO,s*.055,1.6,-.035,.009,.014,.01),Cp('Temporal'+SD(s),HUESO,s*.066,1.615,.0,s*.062,1.615,.03,.0035));
+  B.push(Hole(E('Esfenoides',HUESO,s*.06,1.638,.042,.008,.02,.014),orbitH));
+  B.push(Hole(E('Cigomático'+SD(s),HUESO,s*.05,1.616,.058,.02,.013,.021),orbitH),Cp('Cigomático'+SD(s),HUESO,s*.058,1.615,.045,s*.064,1.615,.03,.004));
+  B.push(Hole(Hole(E('Maxilar'+SD(s),HUESO,s*.024,1.607,.064,.022,.024,.021),orbitH),nasalH));
+  const AP=[.15,.45,.75,1.05,1.32].map(a=>archP(s,a,1.587));B.push(...Chain('Maxilar'+SD(s),HUESO,AP,.0065));
+  B.push(Cp('Nasal'+SD(s),HUESO,s*.004,1.656,.084,s*.007,1.628,.095,.0038));
+  B.push(E('Lagrimal'+SD(s),HUESO,s*.0135,1.634,.074,.002,.006,.004));
+  B.push(E('Palatino'+SD(s),HUESO,s*.011,1.584,.03,.01,.0035,.012));
+  B.push(E('Cornete nasal inferior'+SD(s),HUESO,s*.008,1.598,.062,.0025,.004,.016));
+ }
+ B.push(ShM('Occipital',HUESO,...V,t,(x,y,z)=>Math.max(z-zo(y),1.57-y)),E('Occipital',HUESO,0,1.6,-.065,.03,.014,.018));
+ B.push(Hole(E('Esfenoides',HUESO,0,1.62,.005,.03,.012,.02),orbitH),E('Etmoides',HUESO,0,1.64,.058,.011,.012,.019),Bx('Vómer',HUESO,0,1.6,.058,.0012,.011,.018,.001));
+ const M=[];for(const s of[1,-1]){M.push(...Chain('Mandíbula',HUESO,[[s*.058,1.618,-.01],[s*.052,1.585,-.006],[s*.048,1.552,.004]],.0065),...Chain('Mandíbula',HUESO,[[s*.048,1.552,.004],...[.95,.6,.25].map(a=>archP(s,a,1.551)),[0,1.548,.077]],.008),Cp('Mandíbula',HUESO,s*.051,1.585,.008,s*.048,1.612,.02,.0038))}
+ B.push(...M,E('Mandíbula',HUESO,0,1.536,.072,.015,.011,.009));
+ for(const s of[1,-1])for(const[n,a,r]of TEETH){const ps=archP(s,a,1.578),pi=archP(s,a,1.564);
+  T.push(E(n+' superior'+SD(s),DIENTE,...ps,...r),E(n+' inferior'+SD(s),DIENTE,pi[0],pi[1],pi[2]-.0015,r[0]*.9,r[1],r[2]*.95))}
+ for(const s of[1,-1])O.push(E('Martillo'+SD(s),HUESO,s*.05,1.629,-.004,.0012,.0035,.001),E('Yunque'+SD(s),HUESO,s*.0515,1.6285,-.0065,.0011,.0025,.0012),E('Estribo'+SD(s),HUESO,s*.053,1.6265,-.005,.0012,.001,.0016));
+ B.push(...Chain('Hioides',HUESO,[[-.02,1.5,.012],[-.012,1.498,.028],[0,1.497,.033],[.012,1.498,.028],[.02,1.5,.012]],.0028));
+ /* cartílagos de la cabeza y la laringe */
+ K.push(Bx('Cartílago septal nasal',CART,0,1.614,.1,.0012,.011,.008,.001),E('Cartílago tiroides',CART,0,1.488,.03,.014,.012,.008),E('Cartílago cricoides',CART,0,1.468,.022,.01,.004,.01),E('Epiglotis',CART,0,1.515,.012,.007,.012,.002));
+ for(const s of[1,-1])K.push(E('Cartílago nasal lateral'+SD(s,1),CART,s*.006,1.623,.098,.004,.008,.0045),E('Cartílago alar mayor'+SD(s),CART,s*.007,1.604,.107,.0055,.005,.0075),
+  ShM('Cartílago auricular'+SD(s),CART,s*.079,1.632,-.006,.0045,.026,.016,.0014,(x,y,z)=>-1),E('Cartílago auricular'+SD(s),CART,s*.081,1.612,-.006,.003,.007,.006),E('Cartílago aritenoides'+SD(s),CART,s*.005,1.475,.008,.002,.004,.002));
+ return{B,T,O,K}}
+function axialAtlas(){
+ const B=[],K=[];const sz=y=>y>1.45?-.025:y>1.13?-.05-.012*Math.sin((y-1.13)/.32*Math.PI):-.035;
+ const V=[];for(let i=0;i<7;i++)V.push(['C'+(i+1)+(i==0?' (atlas)':i==1?' (axis)':''),1.56-i*.016,.012,.0055]);for(let i=0;i<12;i++)V.push(['T'+(i+1),1.44-i*.026,.016,.008]);for(let i=0;i<5;i++)V.push(['L'+(i+1),1.115-i*.026,.02,.008]);
+ V.forEach(([n,y,w,h],i)=>{const z=sz(y),N='Vértebra '+n;B.push(Bx(N,HUESO,0,y,z,w,h,w*.8,.003),Cp(N,HUESO,0,y,z-w,0,y-.008,z-w-.02,.004),Cp(N,HUESO,-w-.012,y,z-w*.6,w+.012,y,z-w*.6,.003));
+  if(i>0&&i<V.length){const p=V[i-1];if(i>1){const ym=(p[1]+y)/2;K.push(E('Disco intervertebral '+p[0].split(' ')[0]+'–'+n.split(' ')[0],CARTC,0,ym,sz(ym),w*.95,Math.max(.0015,(p[1]-y)/2-h-.0005),w*.75))}}});
+ K.push(E('Disco intervertebral L5–S1',CARTC,0,.996,sz(.996),.019,.003,.015));
+ B.push(E('Sacro',HUESO,0,.95,-.055,.04,.045,.018),Cp('Cóccix',HUESO,0,.905,-.05,0,.885,-.035,.006));
+ B.push(Bx('Esternón',HUESO,0,1.395,.078,.02,.022,.004,.003),Bx('Esternón',HUESO,0,1.3,.084,.013,.07,.004,.003),E('Esternón',HUESO,0,1.215,.08,.006,.012,.002));
+ for(const s of[1,-1]){
+  for(let i=0;i<12;i++){const yi=1.415-i*.022,a=i<7?.075+.06*Math.sin(Math.min(1,(i+1)/7)*Math.PI/2):.135-(i-6)*.006,b=.06+.03*Math.min(1,(i+1)/7),zc=-.01,cb=i>=10?.3:.55,ce=i<7?1.2:i<10?.85:-1;
+   const ring=(x,y,z)=>{const u=x/a,v=(z-zc)/b,q=Math.sqrt(u*u+v*v),r2=(q-1)*Math.min(a,b),ty=y-(yi-.045*Math.max(0,v));return Math.max(Math.sqrt(r2*r2+ty*ty)-.0055,.002-s*x)};
+   B.push(it('Costilla '+(i+1)+SD(s,1),HUESO,s*a*.5,yi-.02,zc,Math.max(a,b)+.05,(x,y,z)=>Math.max(ring(x,y,z),z-zc-cb*b)));
+   if(ce>0)K.push(it('Cartílago costal '+(i+1)+SD(s),CART,s*a*.3,yi-.04,zc+b*.8,Math.max(a,b)*.6+.03,(x,y,z)=>Math.max(ring(x,y,z),zc+cb*b-z,z-zc-ce*b)))}
+  B.push(...Chain('Clavícula'+SD(s,1),HUESO,[[s*.012,1.44,.075],[s*.07,1.452,.07],[s*.155,1.462,.012]],.0065));
+  B.push(Bx('Escápula'+SD(s,1),HUESO,s*.1,1.33,-.088,.038,.058,.0025,.004),Cp('Escápula'+SD(s,1),HUESO,s*.06,1.37,-.093,s*.16,1.43,-.06,.005),E('Escápula'+SD(s,1),HUESO,s*.165,1.455,-.012,.014,.004,.012),Cp('Escápula'+SD(s,1),HUESO,s*.13,1.42,0,s*.14,1.41,.03,.004),E('Escápula'+SD(s,1),HUESO,s*.175,1.4,-.02,.006,.012,.01));
+  const C='Hueso coxal'+SD(s);
+  B.push(Sh(E(C,HUESO,s*.085,.99,-.015,.055,.06,.045),.005,(x,y,z)=>Math.max(.955-y,.06-s*x,z-.035,-.065-z)),Cp(C,HUESO,s*.075,.92,.02,s*.012,.89,.06,.009),Cp(C,HUESO,s*.07,.93,-.015,s*.055,.865,-.025,.011),Sh(E(C,HUESO,s*.09,.92,0,.02,.02,.02),.004,(x,y,z)=>s*x-.095),Cp(C,HUESO,s*.06,.955,-.04,s*.03,.97,-.055,.008));
+ }
+ K.push(E('Sínfisis del pubis',CART,0,.89,.062,.004,.012,.006));
+ return{B,K}}
+/* miembros (marco local; s=+1 izquierdo). Dedos: índice, medio, anular, meñique */
+const DEDOS=['índice','medio','anular','meñique'],ROM=['II','III','IV','V'],DEDOSP=['dedo gordo (hallux)','segundo dedo','tercer dedo','cuarto dedo','quinto dedo'];
+function limbBones(s){
+ const ua=[E('Húmero'+SD(s),HUESO,0,0,0,.021,.021,.021),E('Húmero'+SD(s),HUESO,s*.016,-.01,.008,.01,.012,.01),Cp('Húmero'+SD(s),HUESO,0,-.02,0,0,-.27,0,.01),E('Húmero'+SD(s),HUESO,0,-.283,0,.024,.01,.012)];
+ const fa=[E('Radio'+SD(s),HUESO,0,-.012,.012,.008,.004,.008),Cp('Radio'+SD(s),HUESO,0,-.015,.012,0,-.235,.014,.0055),E('Radio'+SD(s),HUESO,0,-.243,.012,.008,.006,.011),
+  E('Cúbito'+SD(s),HUESO,0,.008,-.016,.008,.014,.009),Cp('Cúbito'+SD(s),HUESO,0,-.005,-.012,0,-.24,-.012,.0055),E('Cúbito'+SD(s),HUESO,0,-.243,-.012,.006,.006,.006),
+  E('Escafoides'+SD(s),HUESO,0,-.256,.012,.0045,.006,.007),E('Semilunar'+SD(s),HUESO,0,-.256,0,.0045,.005,.006),E('Piramidal'+SD(s),HUESO,0,-.257,-.011,.0045,.005,.005),E('Pisiforme'+SD(s),HUESO,-s*.007,-.258,-.013,.003,.004,.003),
+  E('Trapecio (hueso)'+SD(s),HUESO,0,-.271,.021,.0045,.006,.006),E('Trapezoide'+SD(s),HUESO,0,-.271,.009,.0045,.005,.005),E('Grande (capitado)'+SD(s),HUESO,0,-.272,-.002,.005,.008,.006),E('Ganchoso'+SD(s),HUESO,0,-.271,-.015,.005,.007,.006)];
+ const H=handSD(s);
+ H.FP.forEach((P,i)=>{const nm=' del '+DEDOS[i]+SD(s);fa.push(Cp('Metacarpiano '+ROM[i]+SD(s),HUESO,0,-.279,P[0][2]*.85,P[0][0]+s*.002,P[0][1]+.003,P[0][2],.0042));
+  const sh=(a,b,k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+  ['Falange proximal','Falange media','Falange distal'].forEach((f,j)=>fa.push(Cp(f+nm,HUESO,...sh(P[j],P[j+1],.1),...sh(P[j],P[j+1],j==2?.75:.9),[.0042,.0036,.0031][j])))});
+ const TH=H.TH;fa.push(Cp('Metacarpiano I'+SD(s),HUESO,-s*.002,-.274,.024,TH[1][0],TH[1][1]+.002,TH[1][2]-.002,.0046),Cp('Falange proximal del pulgar'+SD(s),HUESO,...TH[1],...TH[2],.0042),Cp('Falange distal del pulgar'+SD(s),HUESO,...TH[2],TH[2][0]+(TH[3][0]-TH[2][0])*.75,TH[2][1]+(TH[3][1]-TH[2][1])*.75,TH[2][2]+(TH[3][2]-TH[2][2])*.75,.0034));
+ const F='Fémur'+SD(s);
+ const th=[E(F,HUESO,0,0,0,.022,.022,.022),Cp(F,HUESO,0,0,0,s*.03,-.045,0,.011),E(F,HUESO,s*.042,-.045,0,.015,.018,.015),E(F,HUESO,-s*.004,-.075,-.012,.007,.009,.007),Cp(F,HUESO,s*.028,-.05,0,0,-.41,0,.011),E(F,HUESO,.018,-.425,-.005,.013,.016,.022),E(F,HUESO,-.018,-.425,-.005,.013,.016,.022)];
+ const Ft=footSD(s).T,TI='Tibia'+SD(s,1),PE='Peroné'+SD(s);
+ const sh=[E('Rótula'+SD(s,1),HUESO,0,0,.03,.019,.023,.008),E(TI,HUESO,0,-.012,0,.032,.01,.026),E(TI,HUESO,0,-.075,.026,.008,.009,.006),Cp(TI,HUESO,0,-.02,.005,-s*.003,-.4,0,.011),E(TI,HUESO,-s*.02,-.415,0,.006,.012,.008),
+  E(PE,HUESO,s*.026,-.03,-.012,.007,.008,.007),Cp(PE,HUESO,s*.026,-.035,-.012,s*.021,-.41,-.008,.0045),E(PE,HUESO,s*.022,-.425,-.006,.006,.013,.008),
+  E('Astrágalo'+SD(s),HUESO,0,-.437,.002,.014,.011,.02),E('Calcáneo'+SD(s),HUESO,0,-.458,-.026,.013,.016,.026),E('Navicular'+SD(s),HUESO,-s*.01,-.447,.026,.009,.008,.006),E('Cuboides'+SD(s),HUESO,s*.014,-.461,.03,.009,.008,.01),
+  E('Cuneiforme medial'+SD(s),HUESO,-s*.014,-.455,.042,.006,.01,.008),E('Cuneiforme intermedio'+SD(s),HUESO,-s*.004,-.452,.043,.005,.008,.007),E('Cuneiforme lateral'+SD(s),HUESO,s*.005,-.454,.043,.005,.008,.007)];
+ const MT=['I','II','III','IV','V'];
+ Ft.forEach(([xo,r,zt],i)=>{const nm=' del '+DEDOSP[i]+SD(s);sh.push(Cp('Metatarsiano '+MT[i]+SD(s),HUESO,xo*.75,-.458,.05,xo,-.471,.091,i?.0042:.0058));
+  const zs=i?[.096,.096+(zt-.1)*.45,.096+(zt-.1)*.75,zt-.004]:[.096,.116,zt-.004],nm2=i?['Falange proximal','Falange media','Falange distal']:['Falange proximal','Falange distal'];
+  nm2.forEach((f,j)=>sh.push(Cp(f+nm,HUESO,xo,-.473-j*.001,zs[j]+.0015,xo,-.474-j*.001,zs[j+1]-.0015,(i?[.0036,.0032,.0028]:[.0055,.0048])[j])))});
+ const kc=[E('Menisco medial'+SD(s),CART,-s*.017,-.004,0,.014,.002,.02),E('Menisco lateral'+SD(s),CART,s*.017,-.004,0,.013,.002,.018)];
+ return{ua,fa,th,sh,kc}}
+/* ===== CABEZA POR CAPAS: cráneo → músculos de la expresión y masticación → bolsas de grasa → cartílagos → piel ===== */
+const Ring=(n,c,cx,cy,cz,rx,ry,tr)=>it(n,c,cx,cy,cz,Math.max(rx,ry)+tr,(x,y,z)=>len(Math.hypot((x-cx)/rx,(y-cy)/ry)*Math.min(rx,ry)-Math.min(rx,ry),0,z-cz)-tr);
+function headMus(){const L=[],V=[0,1.66,-.008,.0725,.0915,.0935];
+ L.push(ShM('Occipitofrontal (vientre frontal)',MUSC,...V,.0012,(x,y,z)=>Math.max(.03-z,1.665-y)),ShM('Occipitofrontal (vientre occipital)',MUSC,...V,.0012,(x,y,z)=>Math.max(z+.06,1.6-y,y-1.665)),
+  Ring('Orbicular de la boca',MUSC,0,1.568,.079,.019,.0105,.0035),E('Prócer',MUSC,0,1.648,.091,.004,.008,.002));
+ for(const s of[1,-1])L.push(E('Temporal'+SD(s),MUSC,s*.066,1.652,.002,.006,.034,.04),E('Masetero'+SD(s),MUSC,s*.052,1.576,.03,.008,.026,.02),
+  Ring('Orbicular del ojo'+SD(s),MUSC,s*.032,1.638,.084,.0165,.0145,.0032),
+  Fu('Cigomático mayor'+SD(s),MUSC,s*.055,1.61,.05,s*.02,1.568,.081,.004),Fu('Cigomático menor'+SD(s),MUSC,s*.042,1.615,.066,s*.012,1.578,.087,.003),
+  Fu('Elevador del labio superior'+SD(s),MUSC,s*.025,1.624,.079,s*.01,1.578,.088,.003),Fu('Elevador del labio superior y del ala nasal'+SD(s),MUSC,s*.012,1.645,.084,s*.011,1.6,.098,.0024),
+  Fu('Elevador del ángulo de la boca'+SD(s),MUSC,s*.025,1.6,.07,s*.021,1.57,.081,.003),E('Buccinador'+SD(s),MUSC,s*.038,1.57,.05,.003,.012,.02),
+  Fu('Risorio'+SD(s),MUSC,s*.05,1.565,.055,s*.022,1.567,.08,.0025),Fu('Depresor del ángulo de la boca'+SD(s),MUSC,s*.03,1.54,.066,s*.021,1.566,.079,.0035),
+  Fu('Depresor del labio inferior'+SD(s),MUSC,s*.012,1.54,.078,s*.008,1.558,.086,.0034),E('Mentoniano'+SD(s),MUSC,s*.006,1.538,.08,.006,.008,.004),
+  E('Nasal'+SD(s),MUSC,s*.008,1.618,.1,.003,.008,.003),Fu('Corrugador superciliar'+SD(s),MUSC,s*.012,1.652,.088,s*.035,1.664,.088,.0025),
+  E('Pterigoideo medial'+SD(s),MUSC,s*.04,1.575,.0,.004,.018,.01),E('Pterigoideo lateral'+SD(s),MUSC,s*.042,1.605,.008,.004,.007,.012),
+  E('Auricular anterior'+SD(s),MUSC,s*.073,1.638,.012,.001,.004,.005),E('Auricular superior'+SD(s),MUSC,s*.072,1.662,-.008,.001,.006,.008),E('Auricular posterior'+SD(s),MUSC,s*.07,1.628,-.028,.001,.004,.005),
+  Fu('Platisma'+SD(s),MUSC,s*.045,1.42,.035,s*.032,1.54,.035,.003),Fu('Digástrico (vientre anterior)'+SD(s),MUSC,s*.01,1.535,.055,s*.016,1.508,.025,.0028),
+  Fu('Milohioideo'+SD(s),MUSC,s*.03,1.545,.04,s*.004,1.53,.045,.004),Fu('Esternohioideo'+SD(s),MUSC,s*.006,1.497,.03,s*.008,1.43,.045,.003));
+ return L}
+function headFat(){const L=[];for(const s of[1,-1])L.push(E('Bolsa de Bichat (grasa bucal)'+SD(s,1),0xf0d58a,s*.038,1.578,.05,.009,.012,.014),E('Grasa malar'+SD(s,1),0xf0d58a,s*.04,1.612,.072,.014,.011,.009),
+  E('Grasa nasolabial'+SD(s,1),0xf0d58a,s*.025,1.586,.078,.006,.012,.006),E('Grasa temporal'+SD(s,1),0xf0d58a,s*.07,1.648,.02,.004,.018,.022),E('Grasa orbitaria'+SD(s,1),0xf0d58a,s*.032,1.638,.064,.017,.016,.016));
+ L.push(E('Grasa submentoniana',0xf0d58a,0,1.528,.05,.018,.009,.017));return L}
+function headSoft(){const L=[E('·labio superior',0,0,1.574,.081,.019,.005,.008),E('·labio inferior',0,0,1.562,.079,.017,.0055,.008),Cp('·cuello superior',0,0,1.5,-.018,0,1.6,-.03,.044),E('·tejido nucal',0,0,1.59,-.06,.04,.025,.02),E('·punta nasal',0,0,1.606,.11,.009,.008,.008)];
+ for(const s of[1,-1])L.push(E('·globo ocular',0,s*.032,1.638,.072,.0125,.0125,.0125),E('·oreja',0,s*.079,1.632,-.008,.006,.029,.019),E('·mejilla',0,s*.045,1.59,.045,.012,.02,.015));
+ return L}
+const SKA=skullAtlas(),HMU=headMus(),HFA=headFat(),HSHAPE=SKA.B.filter(o=>!o.n.startsWith('Hioides')).concat(SKA.K.filter(o=>!/aritenoides|Epiglotis|cricoides/.test(o.n)),HMU,HFA,headSoft());
+const hairE=(x,y,z)=>Math.max(ell(x,y,z,0,1.672,-.012,.077,.096,.098),1.6-y);
+function fatH(x,y,z){let f=.0025+.002*gs(x,y,z,0,1.54,.075,.02);for(const s of[1,-1])f+=.003*gs(x,y,z,s*.045,1.59,.065,.025);return f}
+function sdHeadSculpt(x,y,z){
+ let d=ell(x,y,z,0,1.655,-.008,.074,.1,.095);
+ d=smin(d,ell(x,y,z,0,1.63,.03,.068,.085,.07),.03);
+ d=smin(d,cap(x,y,z,-.045,1.662,.084,.045,1.662,.084,.008),.016);
+ for(const s of[1,-1]){d=smin(d,ell(x,y,z,s*.048,1.615,.06,.022,.016,.025),.02);d=smin(d,cap(x,y,z,s*.06,1.615,-.005,s*.05,1.553,.035,.012),.025)}
+ d=smin(d,cap(x,y,z,-.032,1.548,.058,.032,1.548,.058,.014),.02);d=smin(d,ell(x,y,z,0,1.535,.07,.022,.016,.018),.015);
+ d=smin(d,cap(x,y,z,0,1.655,.088,0,1.612,.111,.0085),.012);d=smin(d,sph(x,y,z,0,1.607,.111,.0105),.008);
+ for(const s of[1,-1])d=smin(d,sph(x,y,z,s*.0115,1.603,.1,.0072),.006);
+ for(const s of[1,-1])d=smax(d,-sph(x,y,z,s*.0062,1.596,.104,.0032),.002);
+ d=smin(d,ell(x,y,z,0,1.574,.083,.02,.0055,.009),.006);d=smin(d,ell(x,y,z,0,1.5625,.081,.018,.006,.009),.006);
+ d=smax(d,-ell(x,y,z,0,1.5685,.09,.021,.0011,.012),.002);
+ for(const s of[1,-1])d=smax(d,-ell(x,y,z,s*.032,1.638,.086,.0135,.0058,.01),.003);
+ for(const s of[1,-1]){d=smin(d,ell(x,y,z,s*.078,1.632,-.008,.01,.03,.019),.006);d=smax(d,-ell(x,y,z,s*.087,1.628,-.006,.006,.017,.011),.003)}
+ d=smin(d,ell(x,y,z,0,1.672,-.016,.079,.097,.1),.004);
+ d=smin(d,cap(x,y,z,0,1.42,-.012,0,1.56,-.02,.048),.03);
+ for(const s of[1,-1])d=smin(d,cap(x,y,z,s*.045,1.585,-.02,s*.014,1.45,.035,.013),.015);
+ return smin(d,sph(x,y,z,0,1.5,.04,.009),.01)}
+/* piel de la cabeza = envoltura de referencia ∪ (capas anatómicas + grasa + dermis): ninguna capa interna puede atravesar la piel */
+/* ajuste: cada pieza se mete hacia adentro lo necesario para que su grasa+dermis quede bajo la envoltura */
+let HFIT=HSHAPE;
+function fitHead(){let q=12345;const r=()=>(q=(q*1103515245+12345)&0x7fffffff)/0x7fffffff,f=Math.min(1.6,FAT),env=(x,y,z)=>Math.min(sdHeadSculpt(x,y,z),y<1.5?sdTorso(x,y,z):1e9);
+ HFIT=HSHAPE.map(o=>{let e=0;for(let i=0;i<1500;i++){const x=o.cx+(r()*2-1)*o.R,y=o.cy+(r()*2-1)*o.R,z=o.cz+(r()*2-1)*o.R;if(o.d(x,y,z)-fatH(x,y,z)*f-DERM<0){const a=env(x,y,z);if(a>e)e=a}}
+  return e>0?it(o.n,o.c,o.cx,o.cy,o.cz,o.R,(x,y,z)=>o.d(x,y,z)+e+.0028):o})}
+function sdHeadLayers(x,y,z){return lsmin(HFIT,x,y,z,.009)-fatH(x,y,z)*Math.min(1.6,FAT)-DERM}
+function sdHead(x,y,z){let d=smin(sdHeadSculpt(x,y,z),sdHeadLayers(x,y,z)+.004,.003);
+ for(const s of[1,-1]){d=smax(d,-ell(x,y,z,s*.032,1.638,.086,.0135,.0058,.01),.003);d=smax(d,-sph(x,y,z,s*.0062,1.596,.104,.0032),.002)}
+ return smax(d,-ell(x,y,z,0,1.5685,.09,.021,.0011,.012),.002)}
+/* ===================== ATLAS MUSCULAR =====================
+   Cada músculo de origen a inserción, con nombre y lado. Los segmentarios se generan uno por uno. */
+const mcol=n=>{let h=0;for(const ch of n)h=(h*31+ch.charCodeAt(0))|0;const t=((h>>>0)%1000)/1000;return(Math.round(0x9a+t*0x24)<<16)|(Math.round(0x2c+t*0x1c)<<8)|Math.round(0x28+t*0x16)};
+const Mf=(n,a,b,r)=>Fu(n,mcol(n),...a,...b,r),Me=(n,c,r)=>E(n,mcol(n),...c,...r);
+const RingH=(n,cx,cy,cz,r,t)=>it(n,mcol(n),cx,cy,cz,r+t,(x,y,z)=>len(Math.hypot(x-cx,z-cz)-r,y-cy,0)-t);
+const VERT=(()=>{const sz=y=>y>1.45?-.025:y>1.13?-.05-.012*Math.sin((y-1.13)/.32*Math.PI):-.035,V=[];
+ for(let i=0;i<7;i++)V.push(['C'+(i+1),1.56-i*.016,.012]);for(let i=0;i<12;i++)V.push(['T'+(i+1),1.44-i*.026,.016]);for(let i=0;i<5;i++)V.push(['L'+(i+1),1.115-i*.026,.02]);return V.map(([n,y,w])=>({n,y,w,z:sz(y)}))})();
+const ribP=i=>({yi:1.415-i*.022,a:i<7?.075+.06*Math.sin(Math.min(1,(i+1)/7)*Math.PI/2):.135-(i-6)*.006,b:.06+.03*Math.min(1,(i+1)/7),zc:-.01});
+function musHeadNeck(){const L=[];
+ for(const s of[1,-1]){const S=SD(s),ap=[s*.018,1.636,.035];
+  L.push(Mf('Recto superior del ojo'+S,ap,[s*.032,1.65,.066],.0022),Mf('Recto inferior del ojo'+S,ap,[s*.032,1.626,.066],.0022),Mf('Recto medial del ojo'+S,ap,[s*.021,1.638,.068],.0022),Mf('Recto lateral del ojo'+S,ap,[s*.043,1.638,.066],.0022),
+   Mf('Oblicuo superior del ojo'+S,[s*.016,1.645,.04],[s*.02,1.652,.078],.0018),Cp('Oblicuo superior del ojo'+S,mcol('Oblicuo superior del ojo'),s*.02,1.652,.078,s*.035,1.65,.062,.0009),Mf('Oblicuo inferior del ojo'+S,[s*.02,1.624,.074],[s*.04,1.632,.062],.002),
+   Mf('Elevador del párpado superior'+S,ap,[s*.032,1.655,.083],.0015),
+   Mf('Hiogloso'+S,[s*.012,1.5,.025],[s*.012,1.565,.035],.003),Mf('Estilogloso'+S,[s*.045,1.6,-.02],[s*.015,1.567,.04],.0025),Mf('Palatogloso'+S,[s*.01,1.585,.012],[s*.012,1.567,.025],.0018),Mf('Geniogloso'+S,[s*.004,1.548,.07],[s*.004,1.575,.035],.006),
+   Mf('Tensor del velo del paladar'+S,[s*.015,1.6,-.005],[s*.008,1.585,.012],.0015),Mf('Elevador del velo del paladar'+S,[s*.02,1.605,-.015],[s*.005,1.587,.008],.0018),Mf('Palatofaríngeo'+S,[s*.008,1.585,.005],[s*.012,1.53,-.015],.0018),
+   Mf('Estilofaríngeo'+S,[s*.045,1.6,-.02],[s*.012,1.55,-.012],.0018),Mf('Salpingofaríngeo'+S,[s*.01,1.6,-.005],[s*.01,1.555,-.015],.0012),
+   Mf('Cricotiroideo'+S,[s*.008,1.47,.026],[s*.012,1.482,.03],.002),Mf('Cricoaritenoideo posterior'+S,[s*.005,1.468,.012],[s*.005,1.476,.006],.0018),Mf('Cricoaritenoideo lateral'+S,[s*.008,1.47,.02],[s*.005,1.475,.01],.0015),
+   Mf('Tiroaritenoideo'+S,[s*.004,1.484,.026],[s*.005,1.477,.01],.0015),Mf('Vocal'+S,[s*.003,1.483,.025],[s*.004,1.477,.011],.001),Mf('Aritenoideo oblicuo'+S,[s*.004,1.474,.005],[-s*.004,1.479,.006],.0008),
+   Me('Tensor del tímpano'+S,[s*.048,1.632,0],[.001,.001,.004]),Me('Estapedio'+S,[s*.054,1.624,-.008],[.0008,.0015,.0008]),
+   Mf('Recto posterior mayor de la cabeza'+S,[s*.005,1.542,-.05],[s*.022,1.59,-.07],.004),Mf('Recto posterior menor de la cabeza'+S,[s*.002,1.558,-.045],[s*.01,1.595,-.068],.003),
+   Mf('Oblicuo superior de la cabeza'+S,[s*.035,1.562,-.03],[s*.03,1.598,-.065],.003),Mf('Oblicuo inferior de la cabeza'+S,[s*.005,1.542,-.05],[s*.035,1.56,-.032],.0035),
+   Mf('Largo del cuello'+S,[s*.008,1.45,-.008],[s*.006,1.555,-.01],.004),Mf('Largo de la cabeza'+S,[s*.012,1.5,-.01],[s*.008,1.59,-.015],.004),Mf('Recto anterior de la cabeza'+S,[s*.012,1.56,-.012],[s*.008,1.59,-.02],.002),Mf('Recto lateral de la cabeza'+S,[s*.035,1.56,-.025],[s*.03,1.59,-.035],.0025),
+   Mf('Escaleno anterior'+S,[s*.025,1.53,-.02],[s*.05,1.43,.03],.004),Mf('Escaleno medio'+S,[s*.03,1.54,-.025],[s*.065,1.425,0],.0045),Mf('Escaleno posterior'+S,[s*.035,1.52,-.03],[s*.08,1.41,-.03],.004),
+   Mf('Esplenio de la cabeza'+S,[s*.004,1.45,-.06],[s*.05,1.6,-.045],.006),Mf('Esplenio del cuello'+S,[s*.005,1.4,-.07],[s*.03,1.53,-.035],.004),
+   Mf('Semiespinoso de la cabeza'+S,[s*.012,1.42,-.065],[s*.015,1.6,-.07],.006),Mf('Semiespinoso del cuello'+S,[s*.01,1.4,-.07],[s*.005,1.54,-.05],.004),
+   Mf('Elevador de la escápula'+S,[s*.035,1.55,-.03],[s*.1,1.39,-.085],.006),
+   ...Chain('Omohioideo'+S,mcol('Omohioideo'),[[s*.08,1.4,-.06],[s*.02,1.47,.03],[s*.012,1.497,.025]],.002),Mf('Esternotiroideo'+S,[s*.006,1.43,.065],[s*.01,1.485,.035],.0025),Mf('Tirohioideo'+S,[s*.012,1.487,.035],[s*.014,1.498,.026],.002),
+   Mf('Estilohioideo'+S,[s*.045,1.6,-.025],[s*.018,1.5,.015],.0015),Mf('Digástrico (vientre posterior)'+S,[s*.05,1.6,-.035],[s*.018,1.502,.018],.003),Mf('Genihioideo'+S,[s*.003,1.545,.07],[s*.004,1.5,.03],.003),
+   Me('Temporoparietal'+S,[s*.07,1.68,0],[.002,.02,.03]),Mf('Depresor de la ceja'+S,[s*.012,1.645,.088],[s*.016,1.66,.09],.0015));
+  for(const[k,y]of[['superior',1.59],['medio',1.55],['inferior',1.505]])L.push(ShM('Constrictor '+k+' de la faringe'+S,mcol('Constrictor '+k),0,y,-.012,.018,.016,.014,.0015,(x,y,z)=>Math.max(z+.008,.002-s*x)));
+ }
+ L.push(Me('Longitudinal superior de la lengua',[0,1.574,.045],[.016,.003,.028]),Me('Longitudinal inferior de la lengua',[0,1.562,.045],[.014,.003,.026]),Me('Transverso de la lengua',[0,1.568,.045],[.017,.004,.024]),Me('Vertical de la lengua',[0,1.568,.05],[.012,.006,.02]),
+  Me('Músculo de la úvula',[0,1.58,.005],[.002,.006,.002]),Me('Aritenoideo transverso',[0,1.476,.006],[.005,.002,.0015]),Me('Depresor del septo nasal',[0,1.595,.1],[.002,.004,.002]));
+ return L}
+function musTrunk(){const L=[];
+ for(const s of[1,-1]){const S=SD(s);
+  L.push(Mf('Romboides menor'+S,[s*.005,1.46,-.075],[s*.07,1.4,-.09],.005),Mf('Romboides mayor'+S,[s*.005,1.4,-.075],[s*.07,1.31,-.09],.007),
+   Mf('Serrato posterior superior'+S,[s*.005,1.45,-.075],[s*.08,1.37,-.075],.003),Mf('Serrato posterior inferior'+S,[s*.005,1.13,-.075],[s*.09,1.17,-.07],.003),
+   Mf('Iliocostal lumbar'+S,[s*.05,.98,-.065],[s*.06,1.18,-.075],.01),Mf('Iliocostal torácico'+S,[s*.06,1.18,-.075],[s*.055,1.42,-.07],.007),Mf('Iliocostal cervical'+S,[s*.055,1.4,-.07],[s*.035,1.53,-.035],.004),
+   Mf('Longísimo torácico'+S,[s*.032,.98,-.07],[s*.035,1.42,-.07],.01),Mf('Longísimo del cuello'+S,[s*.035,1.42,-.07],[s*.03,1.53,-.035],.004),Mf('Longísimo de la cabeza'+S,[s*.035,1.45,-.06],[s*.055,1.6,-.035],.004),
+   Mf('Espinoso torácico'+S,[s*.012,1.1,-.075],[s*.012,1.4,-.078],.005),Mf('Espinoso del cuello'+S,[s*.01,1.42,-.07],[s*.008,1.54,-.05],.003),Mf('Espinoso de la cabeza'+S,[s*.01,1.45,-.065],[s*.012,1.6,-.07],.0025),
+   Mf('Semiespinoso torácico'+S,[s*.02,1.15,-.068],[s*.012,1.42,-.07],.004),Mf('Cuadrado lumbar'+S,[s*.06,.99,-.04],[s*.05,1.13,-.04],.012),
+   Mf('Pectoral menor'+S,[s*.06,1.32,.07],[s*.13,1.42,.02],.008),Mf('Subclavio'+S,[s*.03,1.43,.07],[s*.12,1.45,.04],.003),
+   Me('Subcostales'+S,[s*.08,1.2,-.06],[.03,.04,.004]),Me('Transverso del tórax'+S,[s*.03,1.27,.07],[.025,.04,.003]),
+   Me('Oblicuo interno del abdomen'+S,[s*.1,1.06,.03],[.032,.08,.045]),ShM('Transverso del abdomen'+S,mcol('Transverso del abdomen'),0,1.08,.008,.1,.1,.064,.0015,(x,y,z)=>Math.max(.004-s*x,.99-y,y-1.17)),
+   Me('Piramidal del abdomen'+S,[s*.008,.91,.07],[.006,.02,.004]),Mf('Cremáster'+S,[s*.05,.9,.06],[s*.03,.86,.07],.0025),
+   Mf('Psoas mayor'+S,[s*.025,1.14,-.03],[s*.07,.9,.03],.014),Mf('Psoas menor'+S,[s*.022,1.14,-.025],[s*.055,.96,0],.004),Mf('Ilíaco'+S,[s*.1,1.01,-.01],[s*.075,.9,.03],.012),
+   Mf('Puborrectal'+S,[s*.02,.89,.05],[0,.875,-.01],.004),Mf('Pubococcígeo'+S,[s*.025,.89,.045],[s*.005,.885,-.035],.003),Mf('Iliococcígeo'+S,[s*.05,.9,0],[s*.008,.887,-.04],.003),Mf('Coccígeo'+S,[s*.045,.9,-.03],[s*.01,.89,-.04],.004),
+   Mf('Transverso superficial del periné'+S,[s*.04,.875,.01],[0,.873,.02],.002),Mf('Transverso profundo del periné'+S,[s*.04,.878,.03],[0,.878,.035],.0025),Mf('Isquiocavernoso'+S,[s*.05,.875,0],[s*.012,.87,.05],.004),
+   Mf('Piriforme'+S,[s*.03,.94,-.055],[s*.13,.89,-.02],.008),Mf('Gémino superior'+S,[s*.07,.905,-.04],[s*.13,.885,-.02],.003),...Chain('Obturador interno'+S,mcol('Obturador interno'),[[s*.05,.9,0],[s*.07,.895,-.04],[s*.13,.882,-.02]],.004),
+   Mf('Gémino inferior'+S,[s*.07,.89,-.04],[s*.13,.878,-.02],.003),Mf('Cuadrado femoral'+S,[s*.065,.87,-.035],[s*.125,.865,-.025],.006),Mf('Obturador externo'+S,[s*.05,.885,.03],[s*.12,.875,-.01],.005),Me('Glúteo menor'+S,[s*.115,.97,-.005],[.035,.04,.03]),
+   Mf('Supraespinoso'+S,[s*.07,1.39,-.09],[s*.19,1.42,-.01],.01),Me('Infraespinoso'+S,[s*.11,1.32,-.098],[.04,.045,.008]),Mf('Infraespinoso'+S,[s*.11,1.32,-.098],[s*.2,1.39,-.03],.009),
+   Mf('Redondo menor'+S,[s*.14,1.29,-.09],[s*.2,1.37,-.03],.006),Mf('Redondo mayor'+S,[s*.13,1.25,-.085],[s*.18,1.33,0],.009),Me('Subescapular'+S,[s*.1,1.32,-.078],[.04,.055,.006]),Mf('Subescapular'+S,[s*.1,1.32,-.078],[s*.18,1.38,.01],.009),
+   Mf('Diafragma (pilar)'+S,[s*.012,1.15,-.035],[s*.01,1.05,-.03],.005));
+  /* intercostales: 11 espacios × 3 capas */
+  for(let i=0;i<11;i++){const p=ribP(i),q=ribP(i+1),y0=(p.yi+q.yi)/2,a=(p.a+q.a)/2,b=(p.b+q.b)/2,zc=-.01;
+   const ic=(n,off,lim)=>it(n+' '+(i+1)+S,mcol(n),s*a*.6,y0-.02,zc,Math.max(a,b)+.05,(x,y,z)=>{const u=x/a,v=(z-zc)/b,qq=Math.sqrt(u*u+v*v),r2=(qq-1)*Math.min(a,b)-off,ty=y-(y0-.045*Math.max(0,v));return Math.max(Math.abs(r2)-.0016,Math.abs(ty)-.0075,.002-s*x,lim(v))});
+   L.push(ic('Intercostal externo',.0035,v=>v-.6),ic('Intercostal interno',0,v=>v-.97),ic('Intercostal íntimo',-.0035,v=>Math.abs(v)-.55))}
+  /* segmentarios de la columna */
+  VERT.forEach((v,i)=>{const nx=VERT[i+1];if(!nx)return;
+   if(i>=1)L.push(Mf('Multífido '+v.n+S,[s*.022,nx.y,nx.z-.012],[s*.004,VERT[Math.max(0,i-1)].y,VERT[Math.max(0,i-1)].z-v.w-.01],.0035));
+   if(v.n[0]=='T')L.push(Mf('Rotador corto '+v.n+S,[s*.018,nx.y,nx.z-.012],[s*.004,v.y-.004,v.z-v.w-.006],.0022),Mf('Rotador largo '+v.n+S,[s*.02,VERT[Math.min(VERT.length-1,i+2)].y,nx.z-.012],[s*.004,v.y-.004,v.z-v.w-.008],.0022));
+   if(v.n[0]!='T'&&i>=1)L.push(Mf('Interespinoso '+v.n+'–'+nx.n+S,[s*.002,v.y-.008,v.z-v.w-.02],[s*.002,nx.y+.002,nx.z-nx.w-.018],.0018),Mf('Intertransverso '+v.n+'–'+nx.n+S,[s*(v.w+.012),v.y,v.z-v.w*.6],[s*(nx.w+.012),nx.y,nx.z-nx.w*.6],.0018))});
+  for(let i=0;i<12;i++){const p=ribP(i),v=VERT[7+i];L.push(Mf('Elevador de la costilla '+(i+1)+S,[s*(v.w+.014),v.y+.006,v.z-.01],[s*.05,p.yi-.002,-.075],.0028))}
+ }
+ L.push(ShM('Diafragma',mcol('Diafragma'),0,1.13,-.005,.115,.09,.075,.0025,(x,y,z)=>1.13-y),RingH('Esfínter externo del ano',0,.872,-.015,.012,.004),RingH('Esfínter externo de la uretra',0,.875,.04,.006,.002),Me('Bulboesponjoso',[0,.865,.035],[.01,.005,.02]));
+ return L}
+const MCP_I=[.03,.018,0,-.018],MCP_P=[.012,-.006,-.022];
+const MLIMB={
+ ua:s=>[Mf('Deltoides (porción clavicular)',[s*0,.04,.035],[s*.01,-.13,.01],.018),Mf('Deltoides (porción acromial)',[s*.025,.045,0],[s*.015,-.13,0],.02),Mf('Deltoides (porción espinal)',[0,.04,-.035],[s*.01,-.13,-.01],.018),
+  Mf('Coracobraquial',[-s*.012,-.02,.01],[-s*.012,-.15,.005],.012),Mf('Bíceps braquial (cabeza larga)',[s*.005,-.04,.02],[0,-.26,.02],.016),Mf('Bíceps braquial (cabeza corta)',[-s*.006,-.04,.025],[0,-.25,.022],.015),Mf('Braquial',[0,-.14,.008],[0,-.27,.012],.02),
+  Mf('Tríceps braquial (cabeza larga)',[-s*.005,-.03,-.025],[0,-.27,-.022],.02),Mf('Tríceps braquial (cabeza lateral)',[s*.016,-.06,-.018],[0,-.26,-.022],.016),Mf('Tríceps braquial (cabeza medial)',[0,-.12,-.012],[0,-.27,-.02],.013)],
+ fa:s=>{const ME=[-s*.022,0,-.004],LE=[s*.022,0,0],L=[Mf('Ancóneo',[s*.02,0,-.01],[0,-.05,-.014],.006),
+  Mf('Pronador redondo',ME,[s*.01,-.12,.014],.009),Mf('Flexor radial del carpo',ME,[-s*.006,-.25,.012],.007),Mf('Palmar largo',ME,[-s*.01,-.25,0],.0045),Mf('Flexor cubital del carpo',ME,[-s*.006,-.255,-.014],.008),
+  Mf('Flexor superficial de los dedos',[-s*.012,-.02,0],[-s*.008,-.24,0],.011),Mf('Flexor profundo de los dedos',[-s*.004,-.03,-.012],[-s*.004,-.24,-.002],.011),Mf('Flexor largo del pulgar',[-s*.002,-.08,.012],[-s*.002,-.245,.016],.006),Me('Pronador cuadrado',[-s*.004,-.225,0],[.004,.012,.016]),
+  Mf('Braquiorradial',[s*.008,.04,.018],[s*.004,-.24,.014],.016),Mf('Extensor radial largo del carpo',LE,[s*.004,-.25,.014],.007),Mf('Extensor radial corto del carpo',[s*.022,-.02,.003],[s*.006,-.25,.006],.007),
+  Mf('Extensor de los dedos',[s*.02,-.01,-.002],[s*.008,-.245,-.002],.009),Mf('Extensor del meñique',[s*.018,-.02,-.01],[s*.006,-.245,-.014],.004),Mf('Extensor cubital del carpo',[s*.015,-.01,-.016],[s*.004,-.25,-.018],.007),
+  Mf('Supinador',[s*.02,-.005,-.008],[s*.006,-.07,.012],.007),Mf('Abductor largo del pulgar',[s*.008,-.1,-.008],[0,-.25,.02],.005),Mf('Extensor corto del pulgar',[s*.008,-.14,-.004],[0,-.265,.026],.004),
+  Mf('Extensor largo del pulgar',[s*.008,-.11,-.012],[s*.004,-.29,.045],.004),Mf('Extensor del índice',[s*.006,-.16,-.012],[s*.006,-.31,.024],.0035),
+  Mf('Abductor corto del pulgar',[-s*.009,-.268,.02],[-s*.014,-.3,.05],.005),Mf('Flexor corto del pulgar',[-s*.008,-.272,.012],[-s*.014,-.305,.048],.0045),Mf('Oponente del pulgar',[-s*.006,-.27,.018],[-s*.008,-.3,.045],.004),Mf('Aductor del pulgar',[-s*.006,-.31,-.005],[-s*.012,-.305,.048],.004),
+  Mf('Abductor del meñique',[-s*.006,-.262,-.02],[-s*.004,-.335,-.03],.005),Mf('Flexor corto del meñique',[-s*.007,-.275,-.018],[-s*.005,-.335,-.028],.004),Mf('Oponente del meñique',[-s*.004,-.278,-.016],[-s*.003,-.33,-.026],.0035),Me('Palmar corto',[-s*.011,-.29,-.022],[.0008,.012,.006])];
+  FING.forEach(([f],i)=>L.push(Mf('Lumbrical '+(i+1)+' de la mano',[-s*.006,-.3,f],[-s*.004,-.34,f+.004],.0025)));
+  MCP_I.forEach((z,i)=>L.push(Mf('Interóseo dorsal '+(i+1)+' de la mano',[s*.002,-.28,z],[s*.002,-.335,z],.0028)));MCP_P.forEach((z,i)=>L.push(Mf('Interóseo palmar '+(i+1)+' de la mano',[-s*.004,-.285,z],[-s*.004,-.335,z],.0024)));return L},
+ th:s=>[Mf('Tensor de la fascia lata',[s*.065,.05,.02],[s*.06,-.08,.01],.018),Mf('Sartorio',[s*.05,0,.04],[-s*.03,-.4,0],.009),Mf('Recto femoral',[0,-.04,.035],[0,-.4,.035],.03),
+  Mf('Vasto lateral',[s*.035,-.06,.005],[s*.025,-.38,.015],.04),Me('Vasto medial',[-s*.03,-.34,.03],[.03,.065,.03]),Mf('Vasto intermedio',[s*.01,-.07,.01],[0,-.39,.02],.028),Me('Articular de la rodilla',[0,-.38,.012],[.01,.012,.004]),
+  Mf('Aductor largo',[-s*.07,-.03,.05],[0,-.25,-.005],.016),Mf('Aductor corto',[-s*.07,-.04,.04],[s*.005,-.15,-.008],.012),Mf('Aductor mayor',[-s*.06,-.07,-.04],[0,-.4,-.015],.022),Mf('Pectíneo',[-s*.05,-.01,.045],[s*.005,-.08,-.005],.01),Mf('Grácil',[-s*.075,-.04,.04],[-s*.03,-.46,-.01],.006),
+  Mf('Bíceps femoral (cabeza larga)',[-s*.045,-.06,-.05],[s*.03,-.44,-.02],.016),Mf('Bíceps femoral (cabeza corta)',[s*.01,-.2,-.015],[s*.03,-.42,-.02],.011),Mf('Semitendinoso',[-s*.04,-.06,-.055],[-s*.02,-.46,-.01],.013),Mf('Semimembranoso',[-s*.035,-.07,-.045],[-s*.025,-.44,-.02],.016)],
+ sh:s=>{const T=footSD(s).T,L=[Mf('Tibial anterior',[s*.017,-.05,.016],[-s*.012,-.455,.035],.02),Mf('Extensor largo del dedo gordo',[s*.02,-.12,.012],[-s*.017,-.47,.11],.005),Mf('Extensor largo de los dedos',[s*.025,-.04,.008],[s*.008,-.47,.1],.007),Mf('Peroneo tercero',[s*.022,-.3,.008],[s*.025,-.465,.07],.004),
+  Mf('Peroneo largo',[s*.03,-.04,-.008],[s*.024,-.43,-.012],.008),Mf('Peroneo corto',[s*.026,-.2,-.01],[s*.028,-.462,.05],.006),
+  Me('Gastrocnemio (cabeza medial)',[-s*.016,-.14,-.028],[.034,.09,.036]),Me('Gastrocnemio (cabeza lateral)',[s*.018,-.12,-.026],[.029,.075,.031]),Mf('Sóleo',[0,-.08,-.018],[0,-.34,-.024],.036),Mf('Plantar delgado',[s*.015,0,-.03],[0,-.45,-.045],.0025),
+  Mf('Poplíteo',[s*.025,0,-.02],[-s*.01,-.07,-.015],.006),Mf('Flexor largo del dedo gordo',[s*.015,-.2,-.018],[-s*.017,-.478,.12],.006),Mf('Flexor largo de los dedos',[-s*.008,-.15,-.015],[0,-.48,.1],.006),Mf('Tibial posterior',[0,-.08,-.012],[-s*.012,-.455,.03],.008),
+  Mf('Extensor corto de los dedos',[s*.015,-.455,.02],[s*.012,-.468,.085],.005),Mf('Extensor corto del dedo gordo',[s*.008,-.455,.02],[-s*.015,-.468,.09],.004),
+  Mf('Abductor del dedo gordo',[-s*.012,-.475,-.02],[-s*.02,-.478,.095],.006),Mf('Flexor corto de los dedos',[0,-.48,-.02],[s*.005,-.48,.09],.006),Mf('Abductor del quinto dedo',[s*.018,-.475,-.02],[s*.026,-.477,.085],.005),
+  Mf('Cuadrado plantar',[0,-.474,-.02],[0,-.474,.03],.007),Mf('Flexor corto del dedo gordo',[-s*.01,-.474,.04],[-s*.017,-.478,.1],.005),Mf('Aductor del dedo gordo (cabeza oblicua)',[s*.008,-.474,.04],[-s*.015,-.477,.095],.004),
+  Mf('Aductor del dedo gordo (cabeza transversa)',[s*.02,-.477,.088],[-s*.012,-.477,.093],.003),Mf('Flexor corto del quinto dedo',[s*.02,-.474,.05],[s*.025,-.476,.09],.0035)];
+  T.slice(1).forEach(([xo],i)=>L.push(Mf('Lumbrical '+(i+1)+' del pie',[xo*.6,-.476,.05],[xo,-.477,.09],.002)));
+  [[-.012,.004],[-.002,.012],[.007,.02],[.015,.026]].forEach(([a,b],i)=>L.push(Mf('Interóseo dorsal '+(i+1)+' del pie',[s*a,-.468,.055],[s*a,-.47,.09],.0022)));
+  T.slice(2).forEach(([xo],i)=>L.push(Mf('Interóseo plantar '+(i+1)+' del pie',[xo-s*.003,-.474,.055],[xo-s*.003,-.475,.088],.002)));return L}};
+function musAtlasTorso(){const T=torsoMus().filter(o=>!/Erector|^Deltoides/.test(o.n));T.forEach(o=>{o.n+=o.cx>.001?' izquierdo':o.cx<-.001?' derecho':''});return T.concat(HMU,musHeadNeck(),musTrunk())}
+/* ===================== ATLAS DE ÓRGANOS ===================== */
+const Om=(n,c,m)=>it(n,c,m.cx,m.cy,m.cz,m.R,m.d);                       /* renombra/recolorea una forma */
+const Cut=(o,f)=>it(o.n,o.c,o.cx,o.cy,o.cz,o.R,(x,y,z)=>Math.max(o.d(x,y,z),f(x,y,z)));
+const BRAIN=0xd9a3a0,BRAIN2=0xc98f8c,CSF=0x8fd0e6,AIR=0xcfe6ef,NERV=0xf2e6a0,GLAND=0xd8a06a,LYM=0xc77a8a;
+function orgCNS(){const O=[],wr=(d,x,y,z)=>d+.0028*Math.sin(x*150)*Math.sin(y*130)*Math.sin(z*140);
+ for(const s of[1,-1]){const S=SD(s),H=it('',0,s*.032,1.665,-.005,.08,(x,y,z)=>Math.max(wr(ell(x,y,z,s*.032,1.665,-.005,.033,.07,.08),x,y,z),.0015-s*x));
+  const lobe=(n,c,m)=>O.push(Cut(Om('Lóbulo '+n+S,c,H),m));
+  lobe('frontal',BRAIN,(x,y,z)=>.015-z);lobe('parietal',0xd2a0a6,(x,y,z)=>Math.max(z-.015,-.045-z,1.665-y));lobe('temporal',0xd6a896,(x,y,z)=>Math.max(z-.015,-.045-z,y-1.665));lobe('occipital',0xcf9a9a,(x,y,z)=>z+.045);
+  O.push(E('Ínsula'+S,0xc79292,s*.026,1.655,.005,.004,.012,.014),E('Tálamo'+S,0xb88a90,s*.008,1.645,-.01,.007,.006,.01),E('Núcleo caudado'+S,0xb8909a,s*.012,1.66,.008,.004,.006,.018),E('Putamen'+S,0xb88894,s*.02,1.65,.0,.004,.008,.012),
+   E('Hipocampo'+S,0xc3949a,s*.022,1.635,-.015,.004,.004,.016),E('Amígdala cerebral'+S,0xc3949a,s*.022,1.633,.004,.004,.004,.004),E('Hemisferio cerebeloso'+S,BRAIN2,s*.025,1.6,-.055,.024,.022,.028),
+   E('Ventrículo lateral'+S,CSF,s*.01,1.665,-.005,.004,.006,.03),E('Bulbo olfatorio'+S,NERV,s*.006,1.628,.055,.002,.002,.008));}
+ O.push(E('Cuerpo calloso',0xe8d8d0,0,1.672,-.005,.006,.005,.035),Bx('Tercer ventrículo',CSF,0,1.642,-.008,.0012,.007,.01,.001),E('Cuarto ventrículo',CSF,0,1.6,-.04,.004,.006,.004),
+  E('Hipotálamo',0xb88a90,0,1.632,0,.005,.004,.006),E('Hipófisis',GLAND,0,1.621,.012,.004,.003,.004),E('Glándula pineal',GLAND,0,1.645,-.025,.002,.002,.003),
+  Cp('Mesencéfalo',0xc4928a,0,1.637,-.018,0,1.62,-.024,.007),E('Protuberancia (puente)',0xc4928a,0,1.605,-.022,.011,.009,.009),Cp('Bulbo raquídeo',0xc4928a,0,1.595,-.03,0,1.565,-.035,.006),E('Vermis del cerebelo',BRAIN2,0,1.6,-.06,.006,.02,.025),
+  Sh(E('Duramadre',0x9aa6b8,0,1.665,-.005,.066,.075,.086),.0009,(x,y,z)=>Math.max(1.57-y,-Math.min(x,y-1.66))),Cp('Quiasma óptico',NERV,-.006,1.628,.012,.006,1.628,.012,.0018));
+ const C=VERT.filter(v=>v.y>=1.1).map(v=>[0,v.y,v.z-v.w*.8-.006]);O.push(...Chain('Médula espinal',0xf0e2b0,[[0,1.565,-.035],...C],.0048),Cp('Cono medular',0xf0e2b0,0,1.115,-.05,0,1.1,-.048,.003),Cp('Cola de caballo',NERV,0,1.1,-.048,0,.96,-.05,.004),Cp('Filum terminal',NERV,0,.96,-.05,0,.9,-.045,.0008));
+ return O}
+function orgSenses(){const O=[],F=[];
+ for(const s of[1,-1]){const S=SD(s),ex=s*.032,ey=1.638,ez=.072;
+  F.push(E('Córnea'+S,0xdfeef3,ex,ey,ez+.0105,.0058,.0058,.0022),E('Iris'+S,0x5a3418,ex,ey,ez+.0088,.0056,.0056,.0005),E('Cristalino'+S,0xe9e2c8,ex,ey,ez+.0062,.0042,.0042,.0019),
+   Sh(E('Retina'+S,0xc85a4a,ex,ey,ez,.0118,.0118,.0118),.0005,(x,y,z)=>z-ez),Sh(E('Esclerótica'+S,0xf2efe8,ex,ey,ez,.0124,.0124,.0124),.0004,(x,y,z)=>z-ez-.004),
+   E('Cuerpo vítreo'+S,0xe6eef0,ex,ey,ez-.001,.0108,.0108,.0105),Cp('Nervio óptico'+S,NERV,s*.03,1.638,.06,s*.012,1.632,.018,.0018),E('Glándula lagrimal'+S,GLAND,s*.045,1.65,.07,.006,.003,.005),
+   Cp('Conducto auditivo externo'+S,0xd9a08a,s*.078,1.632,-.006,s*.057,1.63,-.005,.003),E('Membrana timpánica'+S,0xe8c0a8,s*.056,1.629,-.005,.0004,.0042,.0042),
+   E('Cóclea'+S,0xf0d0b0,s*.045,1.627,-.002,.0035,.0035,.0035),E('Vestíbulo'+S,0xf0d0b0,s*.048,1.629,-.008,.002,.0025,.002),
+   it('Conducto semicircular lateral'+S,0xf0d0b0,s*.05,1.631,-.011,.0036,(x,y,z)=>len(Math.hypot(x-s*.05,z+.011)-.003,y-1.631,0)-.0006),Ring('Conducto semicircular anterior'+S,0xf0d0b0,s*.049,1.634,-.008,.003,.003,.0006),
+   it('Conducto semicircular posterior'+S,0xf0d0b0,s*.051,1.632,-.012,.0036,(x,y,z)=>len(Math.hypot(y-1.632,z+.012)-.003,x-s*.051,0)-.0006),
+   Cp('Trompa de Eustaquio'+S,0xd9a08a,s*.05,1.625,-.002,s*.015,1.6,0,.0016));
+  O.push(E('Seno maxilar'+S,AIR,s*.025,1.61,.055,.011,.012,.011),E('Celdas etmoidales'+S,AIR,s*.008,1.64,.055,.004,.008,.014),E('Parótida'+S,GLAND,s*.06,1.6,-.004,.008,.022,.014),
+   E('Glándula submandibular'+S,GLAND,s*.035,1.53,.035,.01,.008,.012),E('Glándula sublingual'+S,GLAND,s*.012,1.548,.06,.004,.003,.012),E('Amígdala palatina'+S,LYM,s*.014,1.565,.01,.003,.006,.004),
+   E('Cuerda vocal'+S,0xf0e0d0,s*.004,1.48,.018,.002,.0012,.008),E('Lóbulo de la tiroides'+S,0xb04a3a,s*.016,1.463,.025,.007,.017,.008),
+   E('Paratiroides superior'+S,0xc9a060,s*.016,1.476,.016,.002,.002,.002),E('Paratiroides inferior'+S,0xc9a060,s*.016,1.45,.016,.002,.002,.002))}
+ O.push(E('Seno frontal',AIR,0,1.672,.07,.014,.008,.006),E('Seno esfenoidal',AIR,0,1.625,.02,.008,.007,.008),E('Cavidad nasal',AIR,0,1.61,.06,.009,.018,.03),
+  E('Amígdala faríngea (adenoides)',LYM,0,1.61,-.01,.008,.004,.004),E('Amígdala lingual',LYM,0,1.558,.02,.008,.003,.005),E('Nasofaringe',0xd08a7a,0,1.608,-.008,.011,.01,.008),
+  Cp('Orofaringe',0xd08a7a,0,1.585,-.01,0,1.54,-.012,.009),Cp('Laringofaringe',0xd08a7a,0,1.53,-.012,0,1.49,-.01,.007),E('Lengua',0xc4605f,0,1.567,.045,.022,.01,.035),E('Encías',0xd88080,0,1.571,.055,.026,.012,.026),
+  E('Istmo de la tiroides',0xb04a3a,0,1.458,.032,.008,.004,.003));
+ return{O,F}}
+function serp(n,c,x0,x1,y0,y1,z,rows,r){const L=[];let p=[x0,y0,z];for(let k=0;k<rows;k++){const y=y0+(y1-y0)*k/(rows-1),q=[k%2?x0:x1,y,z+.006*Math.sin(k)];L.push(Cp(n,c,...p,...q,r));const nn=[q[0],y+(y1-y0)/(rows-1),z];if(k<rows-1)L.push(Cp(n,c,...q,...nn,r));p=nn}return L}
+function orgTrunk(){const O=[];
+ /* respiratorio */
+ O.push(...Chain('Tráquea',0xd8c0b0,[[0,1.465,.02],[0,1.4,.012],[0,1.335,0]],.009),E('Carina',0xd8c0b0,0,1.332,0,.006,.003,.005),
+  Cp('Bronquio principal derecho',0xd8c0b0,0,1.332,0,-.03,1.3,0,.0065),Cp('Bronquio principal izquierdo',0xd8c0b0,0,1.332,0,.035,1.305,0,.006),
+  Cp('Bronquio lobar superior derecho',0xd8b8a8,-.03,1.3,0,-.06,1.33,0,.0042),Cp('Bronquio lobar medio',0xd8b8a8,-.03,1.3,0,-.055,1.27,.04,.004),Cp('Bronquio lobar inferior derecho',0xd8b8a8,-.03,1.3,0,-.05,1.24,-.02,.0045),
+  Cp('Bronquio lobar superior izquierdo',0xd8b8a8,.035,1.305,0,.06,1.33,.01,.0042),Cp('Bronquio lobar inferior izquierdo',0xd8b8a8,.035,1.305,0,.055,1.24,-.02,.0045));
+ const ob=(x,y,z)=>y-1.27-z*.6,RL=E('',0,-.068,1.29,0,.06,.11,.07),LL=Cut(E('',0,.072,1.29,0,.05,.1,.065),(x,y,z)=>-ell(x,y,z,.025,1.24,.035,.045,.05,.04));
+ O.push(Cut(Om('Lóbulo superior del pulmón derecho',0xd99a9a,RL),(x,y,z)=>Math.max(-ob(x,y,z),1.3-y)),Cut(Om('Lóbulo medio del pulmón derecho',0xd08888,RL),(x,y,z)=>Math.max(-ob(x,y,z),y-1.3)),Cut(Om('Lóbulo inferior del pulmón derecho',0xc98282,RL),ob),
+  Cut(Om('Lóbulo superior del pulmón izquierdo',0xd99a9a,LL),(x,y,z)=>-ob(x,y,z)),Cut(Om('Lóbulo inferior del pulmón izquierdo',0xc98282,LL),ob),
+  Sh(E('Pleura derecha',0xe6c8c8,-.068,1.29,0,.064,.114,.074),.0012,(x,y,z)=>z-.015),Sh(E('Pleura izquierda',0xe6c8c8,.072,1.29,0,.054,.104,.069),.0012,(x,y,z)=>z-.015));
+ /* corazón */
+ O.push(E('Aurícula derecha',0xa83030,-.005,1.265,.03,.018,.016,.016),E('Ventrículo derecho',0x9e2020,.012,1.23,.05,.022,.022,.014),E('Aurícula izquierda',0xb03838,.025,1.27,.01,.018,.014,.014),E('Ventrículo izquierdo',0x8e1a1a,.04,1.225,.03,.02,.028,.02),
+  E('Válvula tricúspide',0xe8d0c0,.002,1.25,.04,.008,.002,.008),E('Válvula mitral',0xe8d0c0,.034,1.25,.022,.008,.002,.008),E('Válvula pulmonar',0xe8d0c0,.012,1.262,.058,.005,.002,.005),E('Válvula aórtica',0xe8d0c0,.02,1.258,.035,.005,.002,.005),
+  Sh(E('Pericardio',0xe0b0a0,.02,1.245,.032,.048,.052,.04),.0012,(x,y,z)=>z-.045),E('Timo',0xd9b0a0,0,1.38,.06,.018,.03,.01));
+ /* digestivo */
+ O.push(...Chain('Esófago',0xc98a7a,[[0,1.49,-.015],[0,1.37,-.02],[.0,1.25,-.03],[.02,1.18,-.01],[.035,1.14,0]],.007),
+  E('Fondo gástrico',0xd49a86,.07,1.15,0,.03,.025,.028),E('Cuerpo del estómago',0xd49a86,.06,1.11,.03,.035,.035,.03),E('Antro pilórico',0xcc9280,.025,1.085,.05,.025,.018,.02),E('Píloro',0xc08070,0,1.09,.05,.01,.01,.01),
+  ...Chain('Duodeno',0xe0a890,[[0,1.09,.05],[-.04,1.09,.03],[-.045,1.05,.02],[-.03,1.03,.02],[.02,1.04,.02]],.009),
+  ...serp('Yeyuno',0xe2a08c,0,.065,1.06,1.0,.045,4,.011),...serp('Íleon',0xdc9884,-.06,.02,.995,.94,.045,4,.011),
+  E('Ciego',0xc9906f,-.075,.96,.03,.018,.02,.018),Cp('Apéndice vermiforme',0xc08060,-.07,.945,.03,-.065,.915,.035,.0035),Cp('Colon ascendente',0xc9906f,-.08,.97,.03,-.085,1.07,.02,.018),
+  ...Chain('Colon transverso',0xc9906f,[[-.085,1.07,.03],[0,1.04,.06],[.08,1.08,.03]],.016),Cp('Colon descendente',0xc9906f,.085,1.08,.02,.085,.97,.02,.015),
+  ...Chain('Colon sigmoide',0xc48a68,[[.085,.97,.02],[.05,.94,.04],[.02,.95,0],[0,.93,-.03]],.012),Cp('Recto',0xb87a60,0,.93,-.035,0,.89,-.02,.012),Cp('Canal anal',0xa86a58,0,.89,-.02,0,.875,-.015,.007),
+  E('Lóbulo derecho del hígado',0x6e2a1f,-.055,1.13,.02,.075,.045,.06),E('Lóbulo izquierdo del hígado',0x74302a,.03,1.15,.04,.045,.025,.04),E('Lóbulo caudado',0x682822,-.01,1.13,-.02,.012,.02,.012),E('Lóbulo cuadrado',0x682822,-.01,1.11,.05,.012,.012,.012),
+  E('Vesícula biliar',0x4a7a3a,-.035,1.09,.06,.008,.018,.008),Cp('Conducto hepático común',0x6a8a40,-.025,1.115,.04,-.03,1.095,.045,.0022),Cp('Conducto cístico',0x6a8a40,-.035,1.09,.055,-.03,1.095,.045,.0018),Cp('Colédoco',0x6a8a40,-.03,1.095,.045,-.02,1.065,.03,.0022),
+  E('Cabeza del páncreas',0xe0b98a,-.025,1.06,.025,.015,.012,.012),Cp('Cuerpo del páncreas',0xe0b98a,-.01,1.07,.015,.06,1.085,0,.009),E('Cola del páncreas',0xe0b98a,.08,1.09,-.01,.012,.008,.008),Cp('Conducto pancreático',0xd0a070,-.02,1.06,.025,.075,1.088,-.008,.0012),
+  E('Bazo',0x6a2340,.1,1.12,-.03,.02,.035,.02),Cut(Bx('Epiplón mayor',0xf0d070,0,1.0,.072,.075,.06,.002,.002),(x,y,z)=>-x),E('Mesenterio',0xe8c878,-.01,1.0,.02,.02,.05,.01));
+ /* urinario y endocrino */
+ for(const s of[1,-1]){const S=SD(s);
+  O.push(E('Riñón'+S,0x7a2a22,s*.055,1.08+(s>0?.01:0),-.05,.022,.04,.018),E('Pelvis renal'+S,0xc8a080,s*.042,1.08+(s>0?.01:0),-.045,.006,.01,.006),E('Glándula suprarrenal'+S,0xd9b050,s*.05,1.13+(s>0?.01:0),-.045,.012,.008,.008),
+   ...Chain('Uréter'+S,0xd0b090,[[s*.042,1.07,-.045],[s*.04,.95,-.03],[s*.03,.91,0],[s*.015,.9,.03]],.0022))}
+ O.push(E('Vejiga urinaria',0xd9b46a,0,.9,.04,.03,.025,.025),Cp('Uretra prostática',0xd0a080,0,.885,.04,0,.872,.04,.0025),Cp('Uretra membranosa',0xd0a080,0,.872,.04,0,.866,.045,.0022));
+ /* aorta y vena cava ya existían */
+ return O}
+function orgRepro(){const O=[];
+ for(const s of[1,-1]){const S=SD(s);
+  O.push(Cp('Cuerpo cavernoso'+S,0xc88a7a,s*.006,.875,.07,s*.006,.82,.1,.0065),E('Testículo'+S,0xe8d0c8,s*.014,.83,.075,.01,.014,.009),Cp('Epidídimo'+S,0xd0a8a0,s*.022,.842,.07,s*.022,.82,.07,.003),
+   ...Chain('Conducto deferente'+S,0xd8c0b0,[[s*.022,.845,.072],[s*.03,.88,.07],[s*.05,.93,.04],[s*.02,.92,0],[s*.008,.9,.02]],.0015),E('Vesícula seminal'+S,0xd8c090,s*.015,.9,0,.004,.01,.004),E('Glándula bulbouretral'+S,0xd8c090,s*.006,.868,.035,.002,.002,.002))}
+ O.push(Cp('Cuerpo esponjoso',0xd09a8a,0,.87,.075,0,.815,.1,.005),E('Glande',0xc88080,0,.808,.102,.009,.01,.009),Cp('Uretra esponjosa',0xd0a080,0,.866,.05,0,.8,.104,.0018),E('Próstata',0xc89070,0,.88,.035,.012,.01,.01),
+  Sh(E('Escroto',0xb88068,0,.83,.075,.026,.026,.021),.0012,(x,y,z)=>z-.085));
+ return O}
+/* ===================== TUBOS Y NÓDULOS (vasos, nervios, conductos, ligamentos en banda) =====================
+   Estructuras tubulares: malla de tubo real (no SDF), fusionada por segmento del cuerpo. f = marco: b cuerpo, ua brazo, fa antebrazo, th muslo, sh pierna */
+const ART=0xc0282a,VEN=0x3a4ca0,LYMV=0xa8d878,NODE=0x8ac060,NRV=0xf0dc70,LIGC=0xe8e2d0,TENC=0xe0d8c0;
+const TB=[];let TBs=1;
+const tb=(k,f,n,c,r,...P)=>TB.push({k,f,s:TBs,n,c,r,P});
+const ndl=(k,f,n,c,r,p)=>TB.push({k,f,s:TBs,n,c,r,P:[p],node:1});
+function ringPath(i,s,f0,f1,dy){const p=ribP(i),q=ribP(Math.min(11,i+1)),y=(p.yi+q.yi)/2+(dy||0),a=(p.a+q.a)/2,b=(p.b+q.b)/2,P=[];for(let k=0;k<=8;k++){const ph=f0+(f1-f0)*k/8;P.push([s*a*Math.sin(ph),y-.045*Math.max(0,-Math.cos(ph)),-.01-b*Math.cos(ph)])}return P}
+function vascData(){
+ const A=(f,n,r,...P)=>tb('vaso',f,n,ART,r,...P),V=(f,n,r,...P)=>tb('vaso',f,n,VEN,r,...P);
+ TBs=0;
+ A('b','Aorta ascendente',.011,[.012,1.255,.04],[.015,1.3,.04]);A('b','Cayado aórtico',.01,[.015,1.3,.04],[.012,1.33,.02],[.01,1.33,-.01],[.015,1.31,-.03]);
+ A('b','Aorta torácica',.009,[.015,1.31,-.03],[.012,1.2,-.035],[.005,1.12,-.035]);A('b','Aorta abdominal',.008,[.005,1.12,-.035],[.005,1.0,-.03]);
+ A('b','Tronco braquiocefálico',.005,[0,1.33,.025],[-.02,1.39,.03]);A('b','Basilar',.002,[0,1.6,-.03],[0,1.625,-.018]);A('b','Comunicante anterior',.0007,[-.005,1.628,.012],[.005,1.628,.012]);
+ A('b','Coronaria derecha',.0015,[.012,1.258,.05],[-.01,1.245,.06],[-.015,1.22,.04],[.01,1.2,.02]);A('b','Coronaria izquierda (tronco)',.0016,[.022,1.26,.04],[.03,1.255,.05]);
+ A('b','Descendente anterior',.0013,[.03,1.255,.05],[.035,1.22,.06],[.045,1.2,.04]);A('b','Circunfleja',.0012,[.03,1.255,.05],[.05,1.245,.03],[.05,1.225,.01]);
+ A('b','Tronco pulmonar',.009,[.012,1.255,.06],[.015,1.285,.045]);A('b','Arteria pulmonar derecha',.0055,[.015,1.285,.04],[-.02,1.3,.01],[-.045,1.3,0]);A('b','Arteria pulmonar izquierda',.005,[.015,1.285,.04],[.04,1.3,.01],[.055,1.3,0]);
+ A('b','Tronco celíaco',.0035,[.005,1.1,-.025],[.005,1.1,0]);A('b','Gástrica izquierda',.0015,[.005,1.1,0],[.04,1.13,.02]);A('b','Hepática común',.002,[.005,1.1,0],[-.03,1.1,.02],[-.04,1.12,.03]);A('b','Esplénica',.002,[.005,1.1,0],[.05,1.1,-.01],[.09,1.115,-.03]);
+ A('b','Mesentérica superior',.003,[.005,1.085,-.025],[0,1.07,.01],[-.02,1,.03],[-.05,.95,.035]);A('b','Mesentérica inferior',.002,[.005,1.03,-.025],[.03,1,0],[.05,.95,.02]);A('b','Sacra media',.0008,[.005,1,-.035],[0,.92,-.05]);
+ V('b','Vena cava superior',.008,[-.02,1.36,.03],[-.02,1.28,.03]);V('b','Vena cava inferior',.009,[-.02,.99,-.025],[-.022,1.1,-.02],[-.02,1.2,-.005],[-.008,1.24,.02]);
+ V('b','Vena braquiocefálica izquierda',.005,[.04,1.42,.03],[0,1.38,.04],[-.02,1.36,.03]);V('b','Vena braquiocefálica derecha',.006,[-.04,1.42,.03],[-.02,1.36,.03]);
+ V('b','Seno sagital superior',.0025,[0,1.66,.07],[0,1.73,0],[0,1.69,-.07],[0,1.62,-.08]);V('b','Seno recto',.0015,[0,1.66,-.03],[0,1.63,-.075]);
+ V('b','Ácigos',.003,[-.008,1,-.04],[-.01,1.25,-.045],[-.02,1.33,-.03],[-.02,1.33,.02]);V('b','Hemiácigos',.002,[.012,1.05,-.04],[.012,1.2,-.045],[0,1.21,-.045]);
+ V('b','Vena porta',.004,[0,1.06,.02],[-.03,1.1,.025]);V('b','Vena esplénica',.0025,[.09,1.11,-.025],[0,1.065,.015]);V('b','Vena mesentérica superior',.003,[-.05,.95,.04],[-.02,1,.035],[0,1.06,.02]);V('b','Vena mesentérica inferior',.002,[.05,.95,.025],[.03,1.02,.01],[.04,1.08,0],[.05,1.09,-.005]);
+ for(const[n,a]of[['derecha',-.045],['media',-.02],['izquierda',.005]])V('b','Vena hepática '+n,.002,[a,1.15,0],[-.012,1.2,-.004]);
+ for(const s of[1,-1]){TBs=s;const S=SD(s,1),Sm=SD(s);
+  A('b','Carótida común'+S,.0035,s>0?[.008,1.33,.02]:[-.02,1.39,.03],[s*.025,1.5,.02]);A('b','Carótida interna'+S,.0025,[s*.025,1.5,.02],[s*.028,1.56,0],[s*.022,1.62,0],[s*.015,1.63,.01]);
+  A('b','Carótida externa'+S,.002,[s*.025,1.5,.02],[s*.035,1.56,.02],[s*.045,1.6,0],[s*.06,1.63,-.005]);A('b','Temporal superficial'+S,.0012,[s*.06,1.63,-.005],[s*.068,1.69,0]);A('b','Maxilar'+S,.0012,[s*.045,1.59,0],[s*.03,1.6,.03]);
+  A('b','Facial'+S,.0012,[s*.035,1.53,.03],[s*.045,1.55,.06],[s*.03,1.59,.08],[s*.012,1.63,.09]);A('b','Lingual'+S,.001,[s*.028,1.51,.025],[s*.012,1.555,.04]);A('b','Tiroidea superior'+S,.001,[s*.025,1.5,.025],[s*.016,1.475,.03]);
+  A('b','Occipital'+S,.0012,[s*.035,1.56,0],[s*.03,1.6,-.06]);A('b','Subclavia'+S,.0035,s>0?[.01,1.335,0]:[-.02,1.39,.03],[s*.05,1.43,.03],[s*.1,1.43,.02],[s*.15,1.41,0]);A('b','Axilar'+S,.003,[s*.15,1.41,0],[s*.19,1.375,.008]);
+  A('b','Vertebral'+S,.0018,[s*.035,1.425,.02],[s*.03,1.45,-.015],[s*.025,1.56,-.03],[s*.01,1.6,-.035]);A('b','Cerebral anterior'+S,.0012,[s*.006,1.628,.01],[s*.004,1.66,.06],[s*.004,1.7,0]);
+  A('b','Cerebral media'+S,.0015,[s*.012,1.628,.005],[s*.04,1.645,.01],[s*.055,1.67,-.01]);A('b','Cerebral posterior'+S,.0012,[0,1.627,-.018],[s*.015,1.63,-.025],[s*.02,1.64,-.06]);A('b','Comunicante posterior'+S,.0008,[s*.012,1.628,.005],[s*.012,1.628,-.02]);
+  A('b','Oftálmica'+S,.0008,[s*.015,1.63,.01],[s*.03,1.638,.055]);A('b','Torácica interna'+S,.0012,[s*.025,1.42,.03],[s*.03,1.3,.075],[s*.03,1.18,.075]);
+  A('b','Renal'+S,.0025,[.005,1.075,-.03],[s*.045,1.08+(s>0?.008:0),-.045]);A('b','Suprarrenal media'+S,.0007,[.005,1.11,-.03],[s*.045,1.13,-.045]);A('b','Testicular'+S,.0009,[.005,1.06,-.025],[s*.03,.98,0],[s*.05,.92,.04],[s*.02,.85,.07]);
+  A('b','Ilíaca común'+S,.005,[.005,1,-.03],[s*.035,.96,-.03]);A('b','Ilíaca interna'+S,.0035,[s*.035,.96,-.03],[s*.04,.92,-.045]);A('b','Ilíaca externa'+S,.004,[s*.035,.96,-.03],[s*.065,.92,0],[s*.08,.9,.03]);
+  A('b','Glútea superior'+S,.0015,[s*.04,.93,-.045],[s*.09,.96,-.06]);A('b','Pudenda interna'+S,.0012,[s*.04,.92,-.045],[s*.04,.88,-.01],[s*.01,.87,.05]);
+  for(let i=0;i<4;i++){const v=VERT[19+i];A('b','Lumbar '+(i+1)+S,.0009,[.005,v.y,-.04],[s*.04,v.y,-.05])}
+  for(let i=0;i<11;i++){A('b','Intercostal posterior '+(i+1)+S,.0008,[.008,ribP(i).yi-.01,-.036],...ringPath(i,s,.25,2.2,-.003));V('b','Vena intercostal posterior '+(i+1)+Sm,.0008,...ringPath(i,s,.25,2.2,.002).reverse(),[s>0?.012:-.01,ribP(i).yi-.008,-.045])}
+  for(const k of[0,1])A('b','Arteria pulmonar lobar '+(k+1)+S,.0025,[s>0?.055:-.045,1.3,0],[s*.07,1.3+(k?-.06:.04),k?-.02:.01]);
+  for(const k of[0,1])V('b','Vena pulmonar '+(k?'inferior':'superior')+S,.004,[s>0?.055:-.045,k?1.25:1.28,0],[s>0?.03:.01,1.27,.01]);
+  V('b','Yugular interna'+S,.004,[s*.035,1.42,.03],[s*.035,1.52,.01],[s*.045,1.6,-.03]);V('b','Yugular externa'+S,.0018,[s*.05,1.43,.02],[s*.06,1.55,0],[s*.06,1.6,-.01]);V('b','Yugular anterior'+S,.0012,[s*.015,1.44,.06],[s*.01,1.52,.045]);
+  V('b','Vena facial'+S,.0012,[s*.035,1.52,.025],[s*.045,1.56,.06],[s*.025,1.62,.085]);V('b','Vena retromandibular'+S,.0013,[s*.055,1.62,0],[s*.05,1.54,.01]);
+  V('b','Seno transverso'+Sm,.0022,[0,1.62,-.08],[s*.045,1.62,-.06]);V('b','Seno sigmoideo'+Sm,.002,[s*.045,1.62,-.06],[s*.045,1.6,-.03]);
+  V('b','Vena subclavia'+S,.004,[s*.15,1.41,.01],[s*.08,1.43,.035],[s*.04,1.42,.03]);V('b','Vena axilar'+S,.0035,[s*.19,1.37,.014],[s*.15,1.41,.01]);
+  V('b','Vena renal'+S,.003,[s*.045,1.08+(s>0?.008:0),-.042],[-.02,1.075,-.022]);V('b','Vena testicular'+S,.001,[s*.02,.85,.072],[s*.05,.92,.042],[s*.03,.98,.002],[s>0?.045:-.02,1.07,-.03]);
+  V('b','Vena ilíaca común'+S,.005,[s*.03,.96,-.025],[-.02,.995,-.025]);V('b','Vena ilíaca interna'+S,.0035,[s*.04,.92,-.04],[s*.03,.96,-.025]);V('b','Vena ilíaca externa'+S,.004,[s*.078,.9,.025],[s*.06,.92,0],[s*.03,.96,-.025]);
+  /* miembro superior */
+  A('ua','Braquial'+S,.0025,[-s*.012,0,.012],[-s*.012,-.15,.014],[0,-.27,.02]);A('ua','Braquial profunda'+S,.0012,[-s*.012,-.06,0],[s*.01,-.18,-.015]);
+  V('ua','Vena basílica'+S,.0018,[-s*.03,-.3,.01],[-s*.035,-.2,0],[-s*.02,-.05,0]);V('ua','Vena cefálica'+S,.0016,[s*.02,-.3,.025],[s*.035,-.15,.022],[s*.03,.02,.03]);V('ua','Venas braquiales'+S,.0016,[-s*.006,-.27,.02],[-s*.016,-.15,.01],[-s*.016,0,.01]);
+  const FP=handSD(s).FP;
+  A('fa','Radial'+S,.0018,[-s*.008,0,.012],[-s*.012,-.12,.022],[-s*.012,-.245,.02]);A('fa','Cubital'+S,.0018,[-s*.012,0,0],[-s*.012,-.24,-.016]);
+  A('fa','Arco palmar superficial'+S,.0011,[-s*.012,-.255,-.016],[-s*.014,-.29,-.01],[-s*.014,-.29,.012],[-s*.011,-.27,.022]);A('fa','Arco palmar profundo'+S,.001,[-s*.006,-.27,.02],[-s*.006,-.28,-.016]);
+  FP.forEach((P,i)=>A('fa','Digital palmar común '+(i+1)+S,.0006,[-s*.014,-.29,P[0][2]*.8],P[0].map((v,j)=>j?v:v-s*.007),P[1].map((v,j)=>j?v:v-s*.007),P[2].map((v,j)=>j?v:v-s*.006)));
+  V('fa','Vena cefálica del antebrazo'+S,.0015,[s*.012,-.24,.025],[s*.02,-.12,.03],[s*.022,0,.025]);V('fa','Vena basílica del antebrazo'+S,.0015,[s*.004,-.24,-.02],[-s*.015,-.12,-.024],[-s*.022,0,-.02]);
+  V('fa','Vena mediana del codo'+S,.0015,[s*.022,-.01,.024],[0,.008,.03],[-s*.022,.02,0]);V('fa','Red venosa dorsal de la mano'+S,.0009,[s*.01,-.27,-.022],[s*.011,-.3,0],[s*.01,-.27,.025]);
+  /* miembro inferior */
+  A('th','Femoral'+S,.0035,[-s*.015,.02,.035],[-s*.02,-.15,.03],[-s*.01,-.33,-.01],[0,-.42,-.025]);A('th','Femoral profunda'+S,.0022,[-s*.015,-.05,.03],[0,-.25,-.02]);
+  A('th','Circunfleja femoral lateral'+S,.0012,[-s*.01,-.06,.03],[s*.04,-.08,.02]);A('th','Circunfleja femoral medial'+S,.0012,[-s*.012,-.06,.028],[-s*.03,-.07,-.02]);
+  V('th','Vena femoral'+S,.004,[0,-.42,-.03],[-s*.016,-.33,-.012],[-s*.028,-.15,.028],[-s*.025,.02,.033]);V('th','Vena safena mayor (muslo)'+S,.0018,[-s*.05,-.43,-.01],[-s*.06,-.25,.02],[-s*.03,-.04,.05]);
+  A('sh','Poplítea'+S,.003,[0,.02,-.028],[0,-.06,-.02]);A('sh','Tibial anterior'+S,.0018,[0,-.06,-.02],[s*.01,-.07,.01],[s*.006,-.42,.02]);A('sh','Dorsal del pie'+S,.0014,[s*.006,-.43,.022],[-s*.005,-.462,.07]);
+  A('sh','Tibial posterior'+S,.002,[0,-.06,-.02],[-s*.005,-.3,-.02],[-s*.015,-.43,-.01]);A('sh','Peronea'+S,.0015,[0,-.1,-.02],[s*.015,-.4,-.015]);
+  A('sh','Plantar medial'+S,.0011,[-s*.015,-.445,-.01],[-s*.016,-.476,.06]);A('sh','Plantar lateral'+S,.0011,[-s*.015,-.445,-.01],[s*.015,-.476,.04]);A('sh','Arco plantar'+S,.001,[s*.015,-.476,.045],[0,-.477,.055],[-s*.012,-.476,.06]);
+  footSD(s).T.forEach(([xo,,zt],i)=>A('sh','Digital plantar '+(i+1)+S,.0006,[xo*.6,-.477,.06],[xo,-.479,.095],[xo,-.481,zt-.008]));
+  V('sh','Vena poplítea'+S,.0032,[s*.004,-.06,-.024],[s*.004,.02,-.032]);V('sh','Vena safena mayor (pierna)'+S,.0016,[-s*.02,-.45,.05],[-s*.022,-.41,.015],[-s*.03,-.2,.005],[-s*.035,0,0]);
+  V('sh','Vena safena menor'+S,.0013,[s*.022,-.42,-.02],[0,-.25,-.04],[0,-.02,-.03]);V('sh','Arco venoso dorsal del pie'+S,.001,[-s*.02,-.455,.06],[0,-.45,.075],[s*.025,-.455,.055]);
+  V('sh','Venas tibiales'+S,.0015,[-s*.012,-.43,-.008],[-s*.004,-.3,-.018],[0,-.06,-.022]);
+ }
+ TBs=0;
+ /* linfático */
+ const LV=(f,n,r,...P)=>tb('linf',f,n,LYMV,r,...P),N=(f,n,r,p)=>ndl('linf',f,n,NODE,r,p);
+ LV('b','Conducto torácico',.0015,[0,1.05,-.03],[.005,1.2,-.038],[0,1.33,-.03],[.02,1.42,0],[.035,1.43,.025]);ndl('linf','b','Cisterna del quilo',0xb0e090,.004,[0,1.06,-.03]);LV('b','Conducto linfático derecho',.001,[-.03,1.42,.02],[-.04,1.43,.03]);
+ const grp=(f,n,r,c,cnt,sp)=>{for(let i=0;i<cnt;i++){const a=i*2.4;N(f,n+' '+(i+1),r,[c[0]+Math.cos(a)*sp*(i%3+1)/3,c[1]+(i/cnt-.5)*sp*1.5,c[2]+Math.sin(a)*sp*(i%3+1)/3])}};
+ grp('b','Ganglio mediastínico',.0025,[0,1.31,.02],6,.02);grp('b','Ganglio paratraqueal',.002,[.0,1.38,.02],3,.012);grp('b','Ganglio paraaórtico',.0025,[.01,1.05,-.035],8,.03);grp('b','Ganglio celíaco',.0022,[.005,1.1,-.005],3,.01);grp('b','Ganglio mesentérico',.002,[-.01,1.0,.025],12,.03);
+ grp('b','Ganglio submentoniano',.0018,[0,1.53,.06],2,.008);
+ for(const s of[1,-1]){TBs=s;const S=SD(s);
+  grp('b','Ganglio cervical profundo'+S,.0022,[s*.04,1.5,.015],6,.03);grp('b','Ganglio cervical superficial'+S,.0018,[s*.055,1.52,.01],3,.02);grp('b','Ganglio submandibular'+S,.002,[s*.035,1.535,.04],3,.01);
+  grp('b','Ganglio occipital'+S,.0018,[s*.025,1.58,-.07],2,.008);grp('b','Ganglio preauricular'+S,.0016,[s*.07,1.625,.01],2,.006);grp('b','Ganglio retroauricular'+S,.0016,[s*.072,1.62,-.03],1,.005);
+  grp('b','Ganglio supraclavicular'+S,.002,[s*.06,1.45,.03],2,.01);grp('b','Ganglio axilar'+S,.0025,[s*.14,1.33,0],8,.025);grp('b','Ganglio hiliar pulmonar'+S,.0022,[s*.035,1.3,0],2,.008);grp('b','Ganglio ilíaco'+S,.0022,[s*.05,.95,-.02],4,.02);
+  grp('ua','Ganglio epitroclear'+S,.0018,[-s*.03,-.25,0],1,.005);grp('th','Ganglio inguinal superficial'+S,.002,[-s*.02,-.02,.06],5,.025);grp('th','Ganglio inguinal profundo'+S,.0018,[-s*.015,-.03,.035],2,.01);grp('sh','Ganglio poplíteo'+S,.0018,[0,.01,-.035],2,.008);
+  LV('ua','Vaso linfático del brazo'+S,.0005,[-s*.03,-.3,.012],[-s*.033,-.15,.004],[-s*.02,0,.004]);LV('fa','Vaso linfático del antebrazo'+S,.0005,[-s*.008,-.25,-.018],[-s*.02,-.12,-.02],[-s*.025,0,-.016]);
+  LV('th','Vaso linfático del muslo'+S,.0005,[-s*.052,-.43,-.006],[-s*.062,-.25,.024],[-s*.032,-.04,.054]);LV('sh','Vaso linfático de la pierna'+S,.0005,[-s*.022,-.44,.05],[-s*.025,-.3,.012],[-s*.038,0,.004])}
+ TBs=1;
+}
+/* malla de tubos fusionada por marco y capa */
+function tubeGeo(list){const P=[],N=[],C=[],G=[],I=[],col=new THREE.Color();
+ for(const e of list){col.setHex(e.c);let g;
+  if(e.node){g=new THREE.SphereGeometry(e.r,8,6);g.translate(...e.P[0])}
+  else{const pts=e.P.map(p=>new THREE.Vector3(...p));let L=0;for(let i=1;i<pts.length;i++)L+=pts[i].distanceTo(pts[i-1]);
+   const cur=pts.length>2?new THREE.CatmullRomCurve3(pts):new THREE.LineCurve3(pts[0],pts[1]);g=new THREE.TubeGeometry(cur,Math.max(2,Math.ceil(L/.008)),e.r,e.r>.003?8:5,false)}
+  const b=P.length/3,pa=g.attributes.position.array,na=g.attributes.normal.array;
+  for(let i=0;i<pa.length;i++){P.push(pa[i]);N.push(na[i])}for(let i=0;i<pa.length/3;i++){C.push(col.r,col.g,col.b);G.push(0,0,0)}
+  const ix=g.index.array;for(let i=0;i<ix.length;i++)I.push(ix[i]+b);g.dispose()}
+ return geo(P,N,C,G,I)}
+function addTubes(key){if(!TB.length){vascData();nervData();ligData()}
+ const fr={b:body};for(const n of['L','R']){const s=GR[n];fr['ua'+s]=piv['s'+n];fr['fa'+s]=piv['e'+n];fr['th'+s]=piv['h'+n];fr['sh'+s]=piv['k'+n]}
+ const groups={};for(const e of TB){if(e.k!==key)continue;const f=e.f==='b'?'b':e.f+e.s;(groups[f]=groups[f]||[]).push(e)}
+ for(const f in groups){addM(fr[f],tubeGeo(groups[f]),key,{items:groups[f]})}}
+/* ===================== SISTEMA NERVIOSO PERIFÉRICO ===================== */
+function nervData(){
+ const Nn=(f,n,r,...P)=>tb('nerv',f,n,NRV,r,...P),G=(f,n,r,p)=>ndl('nerv',f,n,0xe8c850,r,p),RN=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+ const canal=v=>[0,v.y,v.z-v.w*.8-.006];
+ for(const s of[1,-1]){TBs=s;const S=SD(s);
+  /* 12 pares craneales */
+  Nn('b','Par I · tracto olfatorio'+S,.0012,[s*.006,1.628,.055],[s*.01,1.632,.02]);Nn('b','Par I · filetes olfatorios'+S,.0005,[s*.005,1.627,.062],[s*.005,1.618,.066]);
+  Nn('b','Par II · tracto óptico'+S,.0015,[s*.006,1.628,.012],[s*.015,1.635,-.01]);
+  Nn('b','Par III · oculomotor'+S,.0012,[s*.004,1.625,-.012],[s*.012,1.632,.02],[s*.022,1.638,.045]);Nn('b','Par IV · troclear'+S,.0006,[s*.008,1.63,-.03],[s*.02,1.635,.02],[s*.018,1.648,.045]);
+  Nn('b','Par V · raíz del trigémino'+S,.0018,[s*.012,1.61,-.018],[s*.022,1.615,0]);G('b','Ganglio del trigémino (de Gasser)'+S,.004,[s*.022,1.615,0]);
+  Nn('b','Par V1 · nervio oftálmico'+S,.0012,[s*.022,1.615,0],[s*.025,1.645,.04],[s*.02,1.665,.085]);Nn('b','Par V2 · nervio maxilar'+S,.0013,[s*.022,1.615,0],[s*.03,1.61,.04],[s*.03,1.62,.08]);
+  Nn('b','Par V3 · nervio mandibular'+S,.0015,[s*.022,1.615,0],[s*.035,1.585,.005],[s*.04,1.56,.02],[s*.03,1.545,.06]);Nn('b','Nervio lingual'+S,.0008,[s*.035,1.585,.005],[s*.015,1.565,.04]);
+  Nn('b','Par VI · abducens'+S,.0007,[s*.004,1.603,-.015],[s*.022,1.63,.02],[s*.04,1.638,.05]);
+  Nn('b','Par VII · facial'+S,.0012,[s*.01,1.605,-.02],[s*.045,1.625,-.01],[s*.05,1.6,-.02],[s*.055,1.59,-.015]);
+  for(const[n,p]of[['temporal',[s*.065,1.65,.03]],['cigomática',[s*.055,1.62,.06]],['bucal',[s*.05,1.58,.06]],['marginal mandibular',[s*.04,1.55,.05]],['cervical',[s*.045,1.52,.03]]])Nn('b','Rama '+n+' del facial'+S,.0007,[s*.055,1.59,-.015],[s*.058,1.6,.01],p);
+  Nn('b','Par VIII · vestibulococlear'+S,.0012,[s*.01,1.605,-.022],[s*.045,1.627,-.004]);Nn('b','Par IX · glosofaríngeo'+S,.0008,[s*.008,1.595,-.025],[s*.035,1.595,-.03],[s*.02,1.555,0],[s*.012,1.56,.03]);
+  Nn('b','Par X · vago'+S,.0015,[s*.008,1.59,-.028],[s*.035,1.595,-.03],[s*.035,1.52,0],[s*.035,1.42,.02],[s*.02,1.33,0],[s*.01,1.2,-.025],[s*.02,1.13,0],[s*.02,1.08,.02]);
+  Nn('b','Nervio laríngeo recurrente'+S,.0007,...(s>0?[[.02,1.32,0],[.01,1.33,-.015],[.008,1.4,.01],[.005,1.47,.012]]:[[-.04,1.41,.02],[-.02,1.43,.01],[-.008,1.47,.012]]));
+  Nn('b','Par XI · accesorio'+S,.001,[s*.01,1.585,-.035],[s*.04,1.595,-.03],[s*.045,1.53,-.02],[s*.09,1.44,-.06]);Nn('b','Par XII · hipogloso'+S,.001,[s*.006,1.585,-.03],[s*.03,1.575,-.02],[s*.03,1.53,.02],[s*.012,1.55,.045]);
+  /* 31 pares espinales con su ganglio de la raíz dorsal */
+  const SP=[];VERT.forEach((v,i)=>{if(v.n[0]=='C')SP.push(['C'+(i+1),v]);if(v.n=='C7')SP.push(['C8',{y:v.y-.012,z:v.z,w:v.w}]);if(v.n[0]!='C')SP.push([v.n,v])});
+  for(let i=1;i<=5;i++)SP.push(['S'+i,{y:.99-i*.014,z:-.06,w:.01}]);SP.push(['Co1',{y:.9,z:-.05,w:.006}]);
+  for(const[n,v]of SP){const c=canal(v);Nn('b','Nervio espinal '+n+S,.0015,c,[s*.022,v.y-.004,c[2]+.004],[s*.035,v.y-.01,c[2]+.008]);G('b','Ganglio de la raíz dorsal '+n+S,.0028,[s*.022,v.y-.004,c[2]+.004])}
+  /* plexo cervical */
+  Nn('b','Nervio frénico'+S,.0009,[s*.03,1.5,-.01],[s*.04,1.43,.02],[s*.045,1.3,.03],[s*.05,1.2,.02]);Nn('b','Nervio auricular mayor'+S,.0007,[s*.045,1.5,-.02],[s*.06,1.58,-.01]);
+  Nn('b','Nervio occipital menor'+S,.0006,[s*.04,1.5,-.03],[s*.04,1.6,-.06]);Nn('b','Nervio occipital mayor'+S,.0008,[s*.01,1.54,-.05],[s*.02,1.6,-.075]);
+  Nn('b','Nervio transverso del cuello'+S,.0006,[s*.045,1.5,-.02],[s*.02,1.49,.05]);Nn('b','Nervios supraclaviculares'+S,.0006,[s*.045,1.49,-.02],[s*.08,1.45,.04]);
+  /* plexo braquial */
+  ['C5','C6','C7','C8','T1'].forEach((n,i)=>{const v=SP.find(q=>q[0]==n)[1];Nn('b','Raíz '+n+' del plexo braquial'+S,.0016,[s*.035,v.y-.01,canal(v)[2]+.008],[s*.07,1.455-i*.007,0])});
+  for(const[n,y]of[['superior',1.455],['medio',1.44],['inferior',1.425]])Nn('b','Tronco '+n+' del plexo braquial'+S,.0018,[s*.07,y,0],[s*.11,1.42+(y-1.44)*.5,0]);
+  for(const[n,dz]of[['lateral',.008],['posterior',-.008],['medial',0]])Nn('b','Cordón '+n+' del plexo braquial'+S,.0018,[s*.11,1.42,0],[s*.17,1.39+(n=='medial'?-.006:0),.005+dz]);
+  Nn('b','Nervio supraescapular'+S,.0009,[s*.07,1.455,0],[s*.09,1.4,-.08]);Nn('b','Nervio torácico largo'+S,.0008,[s*.06,1.44,-.01],[s*.12,1.33,.02],[s*.13,1.2,.03]);Nn('b','Nervio toracodorsal'+S,.0008,[s*.15,1.39,0],[s*.14,1.25,-.05]);
+  Nn('b','Nervios pectorales'+S,.0007,[s*.13,1.41,.01],[s*.08,1.34,.07]);Nn('b','Nervio subescapular'+S,.0007,[s*.15,1.39,-.005],[s*.11,1.32,-.075]);
+  Nn('ua','Nervio musculocutáneo'+S,.0012,[0,0,.015],[0,-.14,.02],[s*.01,-.27,.02]);Nn('ua','Nervio axilar'+S,.0012,[0,-.02,-.01],[s*.02,-.05,-.025]);
+  Nn('ua','Nervio radial'+S,.0018,[-s*.005,-.02,-.008],[s*.015,-.15,-.022],[s*.02,-.27,0]);Nn('ua','Nervio mediano'+S,.0016,[-s*.012,-.01,.012],[-s*.012,-.15,.014],[-s*.004,-.27,.015]);
+  Nn('ua','Nervio cubital'+S,.0015,[-s*.015,-.01,.005],[-s*.022,-.15,-.01],[-s*.022,-.28,-.015]);Nn('ua','Nervio cutáneo medial del brazo'+S,.0006,[-s*.02,-.02,0],[-s*.03,-.15,0]);
+  const FP=handSD(s).FP,TH=handSD(s).TH;
+  Nn('fa','Rama superficial del radial'+S,.001,[s*.02,0,.005],[s*.012,-.12,.02],[s*.008,-.26,.025]);Nn('fa','Nervio interóseo posterior'+S,.0009,[s*.02,0,0],[s*.01,-.15,-.01]);
+  Nn('fa','Nervio mediano del antebrazo'+S,.0016,[-s*.004,0,.015],[-s*.012,-.12,.004],[-s*.012,-.255,.005]);Nn('fa','Nervio interóseo anterior'+S,.0008,[-s*.006,-.03,.008],[-s*.004,-.22,0]);
+  Nn('fa','Nervio cubital del antebrazo'+S,.0015,[-s*.022,0,-.015],[-s*.014,-.24,-.016]);Nn('fa','Rama recurrente tenar del mediano'+S,.0006,[-s*.012,-.27,.012],[-s*.012,-.285,.03]);
+  FP.forEach((P,i)=>Nn('fa','Nervio digital palmar '+(i+1)+S,.0006,[-s*.012,-.27,i<3?.005:-.015],P[0].map((v,j)=>j?v:v-s*.006),P[2].map((v,j)=>j?v:v-s*.005),P[3].map((v,j)=>j?v:v-s*.004)));
+  Nn('fa','Nervio digital del pulgar'+S,.0006,[-s*.012,-.27,.012],TH[1],TH[3]);
+  /* intercostales */
+  for(let i=0;i<11;i++)Nn('b','Nervio intercostal '+(i+1)+S,.0008,...ringPath(i,s,.3,2.3,-.006));Nn('b','Nervio subcostal'+S,.0008,[s*.03,1.15,-.06],[s*.12,1.1,-.02],[s*.1,1.0,.07]);
+  /* plexo lumbar */
+  Nn('b','Nervio iliohipogástrico'+S,.0008,[s*.03,1.11,-.04],[s*.09,1.03,-.01],[s*.06,.93,.07]);Nn('b','Nervio ilioinguinal'+S,.0007,[s*.03,1.1,-.04],[s*.1,1,0],[s*.04,.89,.07]);
+  Nn('b','Nervio genitofemoral'+S,.0007,[s*.025,1.07,-.03],[s*.035,.97,0],[s*.05,.9,.05]);Nn('b','Nervio cutáneo femoral lateral'+S,.0008,[s*.035,1.05,-.04],[s*.1,.95,.02],[s*.12,.9,.04]);
+  Nn('b','Nervio femoral'+S,.002,[s*.035,1.05,-.04],[s*.07,.95,0],[s*.085,.9,.035]);Nn('b','Nervio obturador'+S,.0012,[s*.03,1.04,-.04],[s*.04,.95,-.01],[s*.05,.89,.03]);
+  Nn('th','Ramas musculares del femoral'+S,.0012,[0,.02,.035],[0,-.08,.04]);Nn('th','Nervio safeno'+S,.0009,[-s*.012,-.05,.035],[-s*.02,-.33,0],[-s*.04,-.43,-.01]);Nn('th','Nervio obturador (ramas)'+S,.0009,[-s*.06,-.03,.03],[-s*.04,-.2,0]);
+  Nn('sh','Nervio safeno (pierna)'+S,.0008,[-s*.035,.0,0],[-s*.025,-.25,.005],[-s*.02,-.44,.03]);
+  /* plexo sacro */
+  Nn('b','Nervio ciático (pelvis)'+S,.003,[s*.04,.94,-.05],[s*.09,.9,-.05]);Nn('b','Nervio glúteo superior'+S,.001,[s*.04,.95,-.05],[s*.09,.965,-.06]);Nn('b','Nervio glúteo inferior'+S,.001,[s*.04,.93,-.05],[s*.08,.92,-.07]);
+  Nn('b','Nervio pudendo'+S,.001,[s*.03,.93,-.05],[s*.04,.885,-.01],[s*.008,.87,.06]);Nn('b','Nervio cutáneo femoral posterior'+S,.0008,[s*.05,.92,-.06],[s*.07,.88,-.07]);
+  Nn('th','Nervio ciático'+S,.003,[0,-.03,-.06],[0,-.2,-.035],[0,-.4,-.03]);
+  Nn('sh','Nervio tibial'+S,.0018,[0,.03,-.03],[0,-.2,-.025],[-s*.015,-.43,-.012]);Nn('sh','Nervio plantar medial'+S,.001,[-s*.015,-.43,-.012],[-s*.016,-.476,.06]);Nn('sh','Nervio plantar lateral'+S,.001,[-s*.015,-.43,-.012],[s*.015,-.476,.04]);
+  Nn('sh','Nervio peroneo común'+S,.0014,[s*.015,.03,-.03],[s*.03,-.04,-.01]);Nn('sh','Nervio peroneo superficial'+S,.001,[s*.03,-.04,-.01],[s*.025,-.3,0],[s*.01,-.45,.06]);
+  Nn('sh','Nervio peroneo profundo'+S,.0009,[s*.03,-.04,-.01],[s*.012,-.1,.015],[s*.005,-.43,.02],[-s*.005,-.46,.08]);Nn('sh','Nervio sural'+S,.0008,[0,-.05,-.035],[s*.01,-.3,-.04],[s*.025,-.45,-.02],[s*.03,-.47,.04]);
+  footSD(s).T.forEach(([xo,,zt],i)=>Nn('sh','Nervio digital plantar '+(i+1)+S,.0005,[xo*.5,-.476,.055],[xo-s*.003,-.479,.095],[xo-s*.003,-.481,zt-.008]));
+  /* tronco simpático */
+  const ch=[[s*.022,1.56,-.012],...VERT.slice(1).map(v=>[s*(v.w+.008),v.y,v.z+.004]),[s*.02,.98,-.05],[s*.012,.94,-.055],[s*.006,.91,-.05]];Nn('b','Tronco simpático'+S,.001,...ch);
+  G('b','Ganglio cervical superior'+S,.003,[s*.022,1.55,-.012]);G('b','Ganglio cervical medio'+S,.002,[s*.022,1.49,-.008]);G('b','Ganglio estrellado'+S,.003,[s*.026,1.43,-.012]);
+  VERT.filter(v=>v.n[0]!='C').forEach(v=>{if(v.n!='T1')G('b','Ganglio simpático '+v.n+S,.002,[s*(v.w+.008),v.y,v.z+.004])});for(let i=1;i<=4;i++)G('b','Ganglio simpático S'+i+S,.0018,[s*.016,.99-i*.016,-.05]);
+  Nn('b','Nervio esplácnico mayor'+S,.0008,[s*.024,1.3,-.04],[s*.012,1.11,-.02]);Nn('b','Nervio esplácnico menor'+S,.0007,[s*.026,1.2,-.04],[s*.016,1.09,-.02]);G('b','Ganglio celíaco'+S,.003,[s*.012,1.1,-.005]);
+ }
+ TBs=0;G('b','Ganglio impar',.002,[0,.9,-.045]);G('b','Ganglio mesentérico superior',.0025,[0,1.08,-.012]);G('b','Ganglio mesentérico inferior',.002,[.006,1.03,-.02]);TBs=1;
+}
+/* ===================== SISTEMA ARTICULAR: ligamentos, tendones, bolsas, cápsulas y fascias ===================== */
+const BUR=0xb8d8e8;
+function ligData(){
+ const Lg=(f,n,r,...P)=>tb('lig',f,n,LIGC,r,...P),Tn=(f,n,r,...P)=>tb('lig',f,n,TENC,r,...P),Bu=(f,n,r,p)=>ndl('lig',f,n,BUR,r,p);
+ TBs=0;
+ const Vf=VERT.slice(1);Lg('b','Ligamento longitudinal anterior',.0015,...Vf.map(v=>[0,v.y,v.z+v.w*.8+.002]),[0,.99,-.03]);Lg('b','Ligamento longitudinal posterior',.001,...Vf.map(v=>[0,v.y,v.z-v.w*.8+.001]));
+ Lg('b','Ligamento supraespinoso',.0012,...VERT.slice(7).map(v=>[0,v.y-.008,v.z-v.w-.023]));Lg('b','Ligamento nucal',.0015,[0,1.45,-.065],[0,1.6,-.07]);
+ VERT.forEach((v,i)=>{const nx=VERT[i+1];if(!nx||i<1)return;Lg('b','Ligamento interespinoso '+v.n+'–'+nx.n,.0012,[0,v.y-.008,v.z-v.w-.014],[0,nx.y+.002,nx.z-nx.w-.012]);
+  for(const s of[1,-1]){TBs=s;Lg('b','Ligamento amarillo '+v.n+'–'+nx.n+SD(s),.0013,[s*.006,v.y-.004,v.z-v.w*.8-.011],[s*.006,nx.y+.004,nx.z-nx.w*.8-.011])}TBs=0});
+ for(const s of[1,-1]){TBs=s;const S=SD(s);
+  Lg('b','Ligamento sacroilíaco anterior'+S,.0028,[s*.035,.97,-.045],[s*.06,.98,-.035]);Lg('b','Ligamento sacroilíaco posterior'+S,.003,[s*.035,.96,-.065],[s*.06,.975,-.055]);
+  Lg('b','Ligamento sacrotuberoso'+S,.002,[s*.02,.92,-.06],[s*.065,.87,-.03]);Lg('b','Ligamento sacroespinoso'+S,.0015,[s*.015,.91,-.055],[s*.055,.89,-.03]);
+  Lg('b','Ligamento inguinal'+S,.0012,[s*.1,.985,.06],[s*.02,.9,.065]);Lg('b','Ligamento iliolumbar'+S,.002,[s*.025,1.01,-.035],[s*.07,1,-.04]);
+  Lg('b','Ligamento costoclavicular'+S,.0015,[s*.03,1.43,.065],[s*.035,1.415,.07]);Lg('b','Ligamento esternoclavicular'+S,.0015,[s*.004,1.425,.08],[s*.014,1.44,.076]);
+  Lg('b','Ligamento acromioclavicular'+S,.002,[s*.155,1.462,.012],[s*.165,1.462,-.005]);Lg('b','Ligamento conoide'+S,.0018,[s*.125,1.42,.012],[s*.12,1.455,.035]);Lg('b','Ligamento trapezoide'+S,.0018,[s*.135,1.42,.018],[s*.138,1.457,.028]);
+  Lg('b','Ligamento coracoacromial'+S,.0018,[s*.14,1.415,.03],[s*.165,1.455,0]);Lg('b','Ligamento coracohumeral'+S,.0015,[s*.14,1.41,.02],[s*.19,1.41,0]);
+  for(const[n,y,y2]of[['superior',1.41,1.41],['medio',1.4,1.395],['inferior',1.39,1.375]])Lg('b','Ligamento glenohumeral '+n+S,.0012,[s*.175,y,-.01],[s*.195,y2,.008]);
+  Lg('b','Ligamento lateral temporomandibular'+S,.0012,[s*.062,1.625,-.005],[s*.058,1.61,-.01]);Lg('b','Ligamento estilomandibular'+S,.0008,[s*.045,1.6,-.025],[s*.05,1.56,0]);Lg('b','Ligamento esfenomandibular'+S,.0008,[s*.035,1.62,-.005],[s*.045,1.58,.01]);
+  for(let i=0;i<7;i++){const p=ribP(i);Lg('b','Ligamento esternocostal radiado '+(i+1)+S,.0012,[s*.015,p.yi-.05,.08],[s*.004,p.yi-.048,.084])}
+  Bu('b','Bolsa subacromial'+SD(s,1),.008,[s*.18,1.43,-.005]);
+  /* codo, muñeca y mano */
+  Lg('fa','Ligamento colateral cubital'+S,.0018,[-s*.022,0,-.004],[-s*.008,-.02,-.014]);Lg('fa','Ligamento colateral radial'+S,.0018,[s*.022,0,0],[s*.006,-.015,.012]);
+  {const P=[];for(let k=0;k<=12;k++){const a=k/12*Math.PI*2;P.push([.009*Math.cos(a),-.012,.012+.009*Math.sin(a)])}Lg('fa','Ligamento anular del radio'+S,.0012,...P)}
+  Lg('fa','Ligamento radiocarpiano palmar'+S,.002,[-s*.006,-.243,0],[-s*.006,-.262,0]);Lg('fa','Ligamento radiocarpiano dorsal'+S,.002,[s*.006,-.243,0],[s*.006,-.262,0]);
+  Lg('fa','Ligamento colateral radial del carpo'+S,.0013,[0,-.245,.022],[0,-.262,.024]);Lg('fa','Ligamento colateral cubital del carpo'+S,.0013,[0,-.245,-.018],[0,-.262,-.02]);
+  Lg('fa','Retináculo flexor'+S,.0015,[-s*.01,-.26,-.015],[-s*.011,-.268,.004],[-s*.01,-.268,.022]);Lg('fa','Retináculo extensor'+S,.0012,[s*.009,-.24,-.02],[s*.01,-.242,0],[s*.009,-.245,.022]);
+  Bu('fa','Bolsa olecraneana'+SD(s,1),.006,[0,.012,-.026]);Tn('ua','Tendón distal del bíceps'+S,.0025,[0,-.24,.02],[0,-.3,.018]);Tn('ua','Tendón de la cabeza larga del bíceps'+S,.0012,[s*.005,-.04,.02],[s*.0,.02,.0]);
+  const FP=handSD(s).FP;FP.forEach((P,i)=>{const nm=' del '+DEDOS[i]+S;
+   Tn('fa','Tendón flexor'+nm,.0011,[-s*.008,-.25,P[0][2]*.4],[-s*.008,-.3,P[0][2]],...P.slice(1).map(p=>[p[0]-s*.0055,p[1],p[2]]));Tn('fa','Tendón extensor'+nm,.0009,[s*.008,-.25,P[0][2]*.4],[s*.009,-.3,P[0][2]],...P.slice(1).map(p=>[p[0]+s*.005,p[1],p[2]]));
+   ['metacarpofalángica','interfalángica proximal','interfalángica distal'].forEach((j,k)=>{for(const dz of[1,-1])Lg('fa','Ligamento colateral '+j+(dz>0?' radial':' cubital')+nm,.0006,[P[k][0],P[k][1]+.004,P[k][2]+dz*.0075],[P[k][0],P[k][1]-.004,P[k][2]+dz*.0075])})});
+  /* cadera y rodilla */
+  Lg('th','Ligamento iliofemoral'+S,.004,[s*.015,.06,.05],[s*.035,-.05,.02]);Lg('th','Ligamento pubofemoral'+S,.003,[-s*.04,0,.04],[0,-.04,.02]);Lg('th','Ligamento isquiofemoral'+S,.003,[-s*.02,0,-.04],[s*.03,-.045,-.01]);
+  Lg('th','Ligamento redondo del fémur'+S,.0015,[0,0,0],[-s*.015,-.005,0]);Lg('th','Tracto iliotibial'+S,.002,[s*.06,.05,0],[s*.065,-.2,0],[s*.045,-.42,0]);Tn('th','Tendón del cuádriceps'+S,.004,[0,-.37,.04],[0,-.42,.045]);
+  Bu('th','Bolsa trocantérea'+SD(s,1),.008,[s*.055,-.045,0]);Bu('th','Bolsa del iliopsoas'+SD(s,1),.006,[-s*.01,0,.035]);Bu('th','Bolsa suprarrotuliana'+SD(s,1),.007,[0,-.38,.035]);
+  Lg('sh','Ligamento cruzado anterior'+S,.003,[s*.008,.008,-.012],[-s*.004,-.012,.012]);Lg('sh','Ligamento cruzado posterior'+S,.003,[-s*.008,.008,.005],[0,-.015,-.018]);
+  Lg('sh','Ligamento colateral medial (tibial)'+S,.002,[-s*.035,.025,0],[-s*.03,-.07,.008]);Lg('sh','Ligamento colateral lateral (peroneo)'+S,.0018,[s*.035,.025,-.005],[s*.028,-.035,-.012]);
+  Tn('sh','Ligamento rotuliano'+S,.004,[0,-.02,.03],[0,-.075,.03]);Lg('sh','Ligamento poplíteo oblicuo'+S,.0015,[-s*.025,-.01,-.025],[s*.02,.02,-.025]);
+  Bu('sh','Bolsa prerrotuliana'+SD(s,1),.008,[0,0,.047]);Bu('sh','Bolsa infrarrotuliana'+SD(s,1),.005,[0,-.07,.038]);Bu('sh','Bolsa anserina'+SD(s,1),.005,[-s*.03,-.06,.01]);Bu('sh','Bolsa retrocalcánea'+SD(s,1),.004,[0,-.45,-.04]);
+  /* tobillo y pie */
+  for(const[n,p]of[['tibionavicular',[-s*.015,-.45,.025]],['tibiocalcánea',[-s*.018,-.455,0]],['tibioastragalina',[-s*.016,-.45,-.018]]])Lg('sh','Ligamento deltoideo ('+n+')'+S,.0018,[-s*.02,-.415,0],p);
+  Lg('sh','Ligamento talofibular anterior'+S,.0015,[s*.022,-.425,.002],[s*.012,-.438,.018]);Lg('sh','Ligamento talofibular posterior'+S,.0015,[s*.022,-.43,-.012],[s*.008,-.44,-.015]);Lg('sh','Ligamento calcaneofibular'+S,.0015,[s*.022,-.43,-.006],[s*.014,-.458,-.02]);
+  Lg('sh','Ligamento tibiofibular anterior inferior'+S,.0015,[s*.008,-.405,.012],[s*.022,-.41,.004]);Lg('sh','Ligamento tibiofibular posterior inferior'+S,.0015,[s*.008,-.405,-.012],[s*.022,-.41,-.012]);
+  Lg('sh','Ligamento calcaneonavicular plantar (resorte)'+S,.002,[0,-.465,0],[-s*.01,-.455,.026]);Lg('sh','Ligamento plantar largo'+S,.002,[0,-.475,-.03],[s*.012,-.47,.045]);
+  Tn('sh','Tendón de Aquiles (calcáneo)'+S,.004,[0,-.3,-.035],[0,-.455,-.045]);Tn('sh','Tendón del tibial anterior'+S,.0018,[s*.008,-.36,.02],[-s*.012,-.455,.035]);
+  Tn('sh','Tendones peroneos'+S,.0016,[s*.026,-.38,-.012],[s*.026,-.43,-.014],[s*.024,-.455,.01],[s*.02,-.47,.05]);Tn('sh','Tendón del tibial posterior'+S,.0016,[-s*.006,-.38,-.012],[-s*.02,-.43,-.008],[-s*.012,-.455,.03]);
+  Lg('sh','Retináculo extensor superior'+S,.0012,[-s*.02,-.39,.012],[0,-.388,.026],[s*.024,-.392,.008]);Lg('sh','Retináculo extensor inferior'+S,.0012,[s*.02,-.45,.02],[0,-.445,.035],[-s*.018,-.44,.02]);
+  Lg('sh','Retináculo flexor del tobillo'+S,.0012,[-s*.022,-.415,-.006],[-s*.018,-.455,-.025]);Lg('sh','Retináculo peroneo'+S,.0012,[s*.024,-.425,-.014],[s*.016,-.455,-.03]);
+  footSD(s).T.forEach(([xo,,zt],i)=>{const nm=' del '+DEDOSP[i]+S;Lg('sh','Aponeurosis plantar (banda)'+nm,.0012,[0,-.484,-.035],[xo*.7,-.484,.05],[xo,-.482,.095]);
+   Tn('sh','Tendón flexor largo'+nm,.0009,[0,-.476,.04],[xo,-.479,.095],[xo,-.481,zt-.006]);Tn('sh','Tendón extensor largo'+nm,.0009,[s*.006,-.45,.035],[xo,-.468,.09],[xo,-.471,zt-.006])})}
+ TBs=1}
+/* cápsulas articulares, discos, aponeurosis y fascias (formas por SDF) */
+function ligSDF(f,s){const C=0xd8e0e8,S=s?SD(s,1):'';
+ if(f=='b'){const L=[ShM('Aponeurosis epicraneal (gálea)',C,0,1.66,-.008,.075,.094,.096,.0013,(x,y,z)=>1.67-y),Bx('Fascia toracolumbar',C,0,1.05,-.09,.06,.07,.001,.001)];
+  for(const s of[1,-1])L.push(ShM('Cápsula del hombro'+SD(s,1),C,s*.185,1.4,-.012,.028,.028,.028,.0015,(x,y,z)=>s*(.175-s*x)*s),E('Disco articular temporomandibular'+SD(s),CART,s*.056,1.619,-.009,.004,.0015,.005),
+   ShM('Cápsula esternoclavicular'+SD(s,1),C,s*.012,1.437,.077,.008,.007,.006,.0008,(x,y,z)=>-1),E('Disco esternoclavicular'+SD(s),CART,s*.01,1.437,.077,.0015,.006,.005));return L}
+ if(f=='fa')return[ShM('Cápsula del codo'+S,C,0,-.002,0,.03,.022,.026,.0012,(x,y,z)=>-1),E('Aponeurosis palmar'+S,C,-s*.0115,-.3,0,.0012,.032,.026)];
+ if(f=='th')return[ShM('Cápsula de la cadera'+S,C,0,-.012,0,.034,.036,.034,.0015,(x,y,z)=>-1)];
+ if(f=='sh')return[ShM('Cápsula de la rodilla'+S,C,0,0,0,.05,.035,.045,.0015,(x,y,z)=>z-.02),ShM('Cápsula del tobillo'+S,C,0,-.432,0,.025,.015,.025,.001,(x,y,z)=>-1)];
+ return[]}
+const AXA=axialAtlas();
+function boneHead(){return layer(SKA.B)}function boneAx(){return layer(AXA.B)}function teethL(){return layer(SKA.T)}function ossL(){return layer(SKA.O)}function cartAx(){return layer(SKA.K.concat(AXA.K))}
+function limbLayers(s){const LB=limbBones(s),nm=L=>(L.forEach(o=>o.n+=SD(s)),layer(L));
+ return{ua:{mus:nm(MLIMB.ua(s)),bone:layer(LB.ua)},fa:{mus:nm(MLIMB.fa(s)),bone:layer(LB.fa)},th:{mus:nm(MLIMB.th(s)),bone:layer(LB.th)},sh:{mus:nm(MLIMB.sh(s)),bone:layer(LB.sh),cart:layer(LB.kc)}}}
+/* ---- Generador de malla para un campo (Surface Nets con normales del SDF) ---- */
+function partGeo(p,h){
+ const b0=p.b0,b1=p.b1,nx=Math.ceil((b1[0]-b0[0])/h)+1,ny=Math.ceil((b1[1]-b0[1])/h)+1,nz=Math.ceil((b1[2]-b0[2])/h)+1;
+ const F=new Float32Array(nx*ny*nz),id=(i,j,k)=>i+nx*(j+ny*k);
+ for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)F[id(i,j,k)]=(i&&j&&k&&i<nx-1&&j<ny-1&&k<nz-1)?-p.sdf(b0[0]+i*h,b0[1]+j*h,b0[2]+k*h):-1;
+ const mx=nx-1,my=ny-1,V=new Int32Array(mx*my*(nz-1)).fill(-1),cid=(i,j,k)=>i+mx*(j+my*k),P=[],N=[],Co=[],G=[],I=[],col=new THREE.Color(),e=h*.5;
+ for(let k=0;k<nz-1;k++)for(let j=0;j<ny-1;j++)for(let i=0;i<nx-1;i++){
+  let mask=0;for(let c=0;c<8;c++){const v=F[id(i+(c&1),j+(c>>1&1),k+(c>>2&1))];dd[c]=v;if(v>0)mask|=1<<c}
+  if(mask===0||mask===255)continue;let px=0,py=0,pz=0,n=0;
+  for(let q=0;q<24;q+=2){const a=ED[q],b=ED[q+1],da=dd[a],db=dd[b];if((da>0)!==(db>0)){const t=da/(da-db);px+=(a&1)+((b&1)-(a&1))*t;py+=(a>>1&1)+((b>>1&1)-(a>>1&1))*t;pz+=(a>>2&1)+((b>>2&1)-(a>>2&1))*t;n++}}
+  const x=b0[0]+(i+px/n)*h,y=b0[1]+(j+py/n)*h,z=b0[2]+(k+pz/n)*h;
+  const gx=p.sdf(x+e,y,z)-p.sdf(x-e,y,z),gy=p.sdf(x,y+e,z)-p.sdf(x,y-e,z),gz=p.sdf(x,y,z+e)-p.sdf(x,y,z-e),gl=Math.hypot(gx,gy,gz)||1;
+  const cv=p.col(x,y,z);if(typeof cv==='number')col.setHex(cv);else col.setRGB(cv[0],cv[1],cv[2]);V[cid(i,j,k)]=P.length/3;P.push(x,y,z);N.push(gx/gl,gy/gl,gz/gl);Co.push(col.r,col.g,col.b);G.push(0,0,p.skin?-1:0);
+ }
+ const q=(a,b,c,d)=>{a=V[a];b=V[b];c=V[c];d=V[d];if(a>=0&&b>=0&&c>=0&&d>=0)I.push(a,b,c,a,c,d)};
+ for(let k=0;k<nz-1;k++)for(let j=0;j<ny-1;j++)for(let i=0;i<nx-1;i++){const s0=F[id(i,j,k)]>0;
+  if(j>0&&k>0&&s0!==(F[id(i+1,j,k)]>0))q(cid(i,j,k),cid(i,j-1,k),cid(i,j-1,k-1),cid(i,j,k-1));
+  if(i>0&&k>0&&s0!==(F[id(i,j+1,k)]>0))q(cid(i,j,k),cid(i-1,j,k),cid(i-1,j,k-1),cid(i,j,k-1));
+  if(i>0&&j>0&&s0!==(F[id(i,j,k+1)]>0))q(cid(i,j,k),cid(i-1,j,k),cid(i-1,j-1,k),cid(i,j-1,k));
+ }
+ return geo(P,N,Co,G,I);
+}
+const hero=new THREE.Group(),body=new THREE.Group();hero.add(body);S.add(hero);
+const piv={},LAY={piel:[],ojos:[],grasa:[],mus:[],hueso:[],cart:[],org:[],vaso:[],linf:[],nerv:[],lig:[]},ANAT={n:{mus:0,hueso:0,org:0,cart:0,vaso:0,linf:0,nerv:0,lig:0},P:{vaso:new Set(),linf:new Set(),nerv:new Set(),lig:new Set()},tris:{},names:{mus:new Set(),hueso:new Set(),org:new Set(),cart:new Set(),vaso:new Set(),linf:new Set(),nerv:new Set(),lig:new Set()},bones:new Set(),musP:new Set(),orgP:new Set()};
+function addM(par,g,key,lay){if(!g)return;const m=new THREE.Mesh(g,SH);m.visible=AMODES[am][1].includes(key);par.add(m);LAY[key].push(m);ANAT.tris[key]=(ANAT.tris[key]||0)+g.index.count/3;
+ if(lay){ANAT.n[key]+=lay.items.length;lay.items.forEach(o=>{if(o.c===TEND)return;ANAT.names[key].add(typeName(o.n));if(key==='mus')ANAT.musP.add(o.n);if(key==='org')ANAT.orgP.add(o.n);if(ANAT.P[key])ANAT.P[key].add(o.n);if(o.c===HUESO)ANAT.bones.add(o.n)})}}
+const typeName=n=>n.replace(/ (izquierd|derech)[oa]$/,'').replace(/ [CTL]\d+(–[CTL]\d+)?( \((atlas|axis)\))?/g,'').replace(/ \d+(?= |$)/g,'').replace(/ \(pilar\)/,'').trim();
+function clearLayer(k){for(const m of LAY[k]){m.parent.remove(m);m.geometry.dispose()}LAY[k]=[];ANAT.tris[k]=0}
+const GR={},SEGS=[['ua','s',.008],['fa','e',.0042],['th','h',.009],['sh','k',.006]];
+function makeRig(){for(const[s,n]of[[1,'L'],[-1,'R']]){
+ const sh=new THREE.Group();sh.position.set(.19*s,1.4,-.01);sh.rotation.z=.06*s;body.add(sh);
+ const el=new THREE.Group();el.position.set(0,-.29,0);sh.add(el);
+ const hp=new THREE.Group();hp.position.set(.09*s,.92,0);body.add(hp);
+ const kn=new THREE.Group();kn.position.set(0,-.43,0);hp.add(kn);
+ piv['s'+n]=sh;piv['e'+n]=el;piv['h'+n]=hp;piv['k'+n]=kn;GR[n]=s}}
+function buildSkin(){clearLayer('piel');grooves();fitHead();addM(body,partGeo(SKIN_HEAD,.005),'piel');addM(body,partGeo(SKIN_TORSO,.01),'piel');
+ for(const n of['L','R'])for(const[seg,pv,h]of SEGS)addM(piv[pv+n],partGeo(limbSkin(seg,GR[n]).skin,h),'piel')}
+function buildFat(){clearLayer('grasa');addM(body,partGeo(FAT_TORSO,.012),'grasa');addM(body,partGeo(layer(HFA),.004),'grasa');for(const n of['L','R'])for(const[seg,pv]of SEGS)addM(piv[pv+n],partGeo(limbSkin(seg,GR[n]).fat,.009),'grasa')}
+function makeHero(){makeRig();buildSkin();addM(body,partGeo(EYES,.0025),'ojos')}
+/* capas internas: se construyen por pasos después de cargar, para no demorar el inicio */
+/* capas internas: cada sistema se construye la primera vez que se pide (modo Anatomía) */
+const BUILT={},LLm={},LLg=s=>LLm[s]||(LLm[s]=limbLayers(s));
+const JOBS={grasa:[buildFat],
+ mus:[()=>{const L=layer(HMU.concat(musHeadNeck()));addM(body,partGeo(L,.0028),'mus',L)},()=>{const T=musTrunk(),seg=T.filter(o=>/Intercostal|Multífido|Rotador|Interespinoso|Intertransverso|Elevador de la costilla|Subcostales|Transverso del tórax/.test(o.n));const L1=layer(seg);addM(body,partGeo(L1,.004),'mus',L1);const tm=torsoMus().filter(o=>!/Erector|^Deltoides/.test(o.n));tm.forEach(o=>{o.n+=o.cx>.001?' izquierdo':o.cx<-.001?' derecho':''});const L2=layer(tm.concat(T.filter(o=>!seg.includes(o)),[Bx('Línea alba',TEND,0,1.13,.084,.003,.12,.003,.002)]));addM(body,partGeo(L2,.006),'mus',L2)}],
+ hueso:[()=>{const L=boneHead();addM(body,partGeo(L,.0028),'hueso',L)},()=>{const L=boneAx();addM(body,partGeo(L,.0045),'hueso',L)},()=>{const L=teethL();addM(body,partGeo(L,.0011),'hueso',L)},()=>{const L=ossL();addM(body,partGeo(L,.0004),'hueso',L)}],
+ cart:[()=>{const L=cartAx();addM(body,partGeo(L,.003),'cart',L)}],
+ org:[()=>{const L=layer(orgCNS());addM(body,partGeo(L,.0025),'org',L)},()=>{const T=orgTrunk(),L=layer(T);addM(body,partGeo(L,.0035),'org',L)},()=>{const L=layer(orgRepro());addM(body,partGeo(L,.0018),'org',L)},
+ ()=>{const{O,F}=orgSenses(),L=layer(O);addM(body,partGeo(L,.0022),'org',L);
+  const eye=/Córnea|Iris|Cristalino|Retina|Esclerótica|vítreo/,ear=/semicircular|Cóclea|Vestíbulo|timpánica|auditivo/;
+  for(const s of[1,-1]){const side=o=>Math.sign(o.cx)===s;const E1=layer(F.filter(o=>side(o)&&eye.test(o.n)));addM(body,partGeo(E1,.0006),'org',E1);const E2=layer(F.filter(o=>side(o)&&ear.test(o.n)));addM(body,partGeo(E2,.00045),'org',E2)}
+  const R=layer(F.filter(o=>!eye.test(o.n)&&!ear.test(o.n)));addM(body,partGeo(R,.0012),'org',R)}],
+ vaso:[()=>addTubes('vaso')],linf:[()=>addTubes('linf')],nerv:[()=>addTubes('nerv')],
+ lig:[()=>{addTubes('lig');const B=layer(ligSDF('b'));addM(body,partGeo(B,.0022),'lig',B);for(const n of['L','R']){const s=GR[n];for(const[f,pv,h]of[['fa','e',.0016],['th','h',.002],['sh','k',.002]]){const L=layer(ligSDF(f,s));addM(piv[pv+n],partGeo(L,h),'lig',L)}}}]};
+for(const n of['L','R']){const sg=n=='L'?1:-1;
+ JOBS.mus.push(()=>{const LL=LLg(sg);addM(piv['s'+n],partGeo(LL.ua.mus,.006),'mus',LL.ua.mus);addM(piv['e'+n],partGeo(LL.fa.mus,.0035),'mus',LL.fa.mus)},()=>{const LL=LLg(sg);addM(piv['h'+n],partGeo(LL.th.mus,.007),'mus',LL.th.mus);addM(piv['k'+n],partGeo(LL.sh.mus,.004),'mus',LL.sh.mus)});
+ JOBS.hueso.push(()=>{const LL=LLg(sg);addM(piv['s'+n],partGeo(LL.ua.bone,.006),'hueso',LL.ua.bone);addM(piv['e'+n],partGeo(LL.fa.bone,.0018),'hueso',LL.fa.bone)},()=>{const LL=LLg(sg);addM(piv['h'+n],partGeo(LL.th.bone,.006),'hueso',LL.th.bone);addM(piv['k'+n],partGeo(LL.sh.bone,.0022),'hueso',LL.sh.bone)});
+ JOBS.cart.push(()=>{const LL=LLg(sg);addM(piv['k'+n],partGeo(LL.sh.cart,.0015),'cart',LL.sh.cart)})}
+let QUEUE=[],RUN=false;
+function ensure(keys){for(const k of keys)if(JOBS[k]&&!BUILT[k]){BUILT[k]=1;for(const j of JOBS[k])QUEUE.push(j)}if(!RUN&&QUEUE.length){RUN=true;const tot=QUEUE.length;let done=0;
+ const step=()=>{QUEUE.shift()();done++;setAnat(am,1);$('anatB').textContent='Anatomía: construyendo '+Math.round(done/Math.max(tot,done+QUEUE.length)*100)+' %';if(QUEUE.length)setTimeout(step,30);else{RUN=false;ANAT.done=true;setAnat(am,1);fillLeg()}};setTimeout(step,50)}}
+function innerJobs(){ensure(Object.keys(JOBS))}
+const AMODES=[['Piel',['piel','ojos']],['Grasa subcutánea',['grasa','ojos']],['Músculos',['mus','ojos']],['Esqueleto',['hueso','ojos']],['Esqueleto + cartílagos',['hueso','cart','ojos']],['Órganos',['org']],['Vasos sanguíneos',['vaso','ojos']],['Linfático',['linf','ojos']],['Vasos + órganos',['vaso','org']],['Nervios',['nerv','ojos']],['Nervios + esqueleto',['nerv','hueso']],['Ligamentos y tendones',['lig','hueso','cart']],['Esqueleto + órganos',['hueso','org','ojos']]];let am=0;
+function setAnat(i,internal){am=i;if(!internal)ensure(AMODES[i][1]);const on=AMODES[i][1];for(const k in LAY)for(const m of LAY[k])m.visible=on.includes(k);document.getElementById('anatB').textContent='Anatomía: '+AMODES[i][0]}
+function setFat(bf){FAT=bf/15;buildSkin();if(BUILT.grasa)buildFat();setAnat(am);$('load').style.display='none'}
+function animHero(dt,run,wet){
+ const amp=Math.min(1,pl.sp/2.3)*(run?.7:.5),sw=Math.sin(pl.ph)*amp,c=Math.cos(pl.ph);
+ if(pl.g||wet){piv.hL.rotation.x=sw;piv.hR.rotation.x=-sw;piv.kL.rotation.x=Math.max(0,-c)*amp*1.4;piv.kR.rotation.x=Math.max(0,c)*amp*1.4;
+  piv.sL.rotation.x=-sw*.8;piv.sR.rotation.x=sw*.8;piv.eL.rotation.x=piv.eR.rotation.x=-(.15+amp*(run?.9:.4));
+  body.position.y=-.92*(1-Math.cos(sw))}
+ else{piv.hL.rotation.x=-.6;piv.hR.rotation.x=.3;piv.kL.rotation.x=.9;piv.kR.rotation.x=.4;piv.sL.rotation.x=piv.sR.rotation.x=-.5;piv.eL.rotation.x=piv.eR.rotation.x=-.7;body.position.y=0}
+}
+/* ===== Jugador y física sobre la densidad ===== */
+const pl={x:0,y:0,z:0,vy:0,g:false,face:0,ph:0,sp:0};
+function spawn(){pl.x=10;pl.z=NZ*VS/2;pl.y=NY*VS;while(pl.y>0&&!solid(pl.x,pl.y,pl.z))pl.y-=.1;pl.y+=.15;pl.vy=0}
+function blocked(x,y,z){for(const hh of[.6,1.05,1.5])for(const[ox,oz]of[[0,0],[.25,0],[-.25,0],[0,.25],[0,-.25]])if(solid(x+ox,y+hh,z+oz))return true;return false}
+const K={};let jumpReq=false,runOn=false,joy=null,fp=false,yaw=Math.PI/2,pitch=.35,cdist=4.5;
+function physics(dt){
+ let jx=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0),jy=(K.KeyS||K.ArrowDown?1:0)-(K.KeyW||K.ArrowUp?1:0);
+ if(joy){jx+=joy.x;jy+=joy.y}const jm=Math.hypot(jx,jy);if(jm>1){jx/=jm;jy/=jm}
+ const run=runOn||K.ShiftLeft||K.ShiftRight,spd=run?5:2.3,s=Math.sin(yaw),c=Math.cos(yaw);
+ const mx=(-s*-jy+c*jx)*spd,mz=(-c*-jy-s*jx)*spd,wet=pl.y+1.1<WL;
+ const k=wet?.55:1;
+ if(!blocked(pl.x+mx*dt*k,pl.y,pl.z))pl.x+=mx*dt*k;if(!blocked(pl.x,pl.y,pl.z+mz*dt*k))pl.z+=mz*dt*k;
+ pl.x=cl(pl.x,.3,NX*VS-.3);pl.z=cl(pl.z,.3,NZ*VS-.3);
+ if(jumpReq&&(pl.g||wet)){pl.vy=wet?3:5.4;pl.g=false}jumpReq=false;
+ const wasG=pl.g;pl.vy-=(wet?6:18)*dt;if(wet)pl.vy*=.96;pl.y+=pl.vy*dt;pl.g=false;
+ if(pl.vy>0&&solid(pl.x,pl.y+1.78,pl.z))pl.vy=0;
+ if(solid(pl.x,pl.y,pl.z)){let n=0;while(solid(pl.x,pl.y,pl.z)&&n<40){pl.y+=.025;n++}pl.vy=0;pl.g=true}
+ else if(wasG&&pl.vy<=0){for(let n=1;n<=10;n++)if(solid(pl.x,pl.y-n*.03,pl.z)){pl.y-=(n-1)*.03;pl.vy=0;pl.g=true;break}}
+ if(pl.y<-10)spawn();
+ const hs=Math.hypot(mx,mz)*k;pl.sp+=(hs-pl.sp)*Math.min(1,dt*10);
+ if(hs>.1){const tf=Math.atan2(mx,mz);let df=tf-pl.face;df=Math.atan2(Math.sin(df),Math.cos(df));pl.face+=df*Math.min(1,dt*12)}
+ // animación
+ pl.ph+=dt*pl.sp*3.3;animHero(dt,run,wet);
+ hero.position.set(pl.x,pl.y,pl.z);hero.rotation.y=pl.face;
+}
+const tmp=new THREE.Vector3();
+function updCam(){
+ const hx=pl.x,hy=pl.y+(fp?1.64:1.5),hz=pl.z,ox=Math.sin(yaw)*Math.cos(pitch),oy=Math.sin(pitch),oz=Math.cos(yaw)*Math.cos(pitch);
+ hero.visible=!fp;
+ if(fp){cam.position.set(hx,hy,hz);cam.lookAt(hx-ox,hy-oy,hz-oz);return}
+ let d=cdist;for(let t=.3;t<=cdist;t+=.15)if(solid(hx+ox*t,hy+oy*t,hz+oz*t)){d=Math.max(.3,t-.25);break}
+ cam.position.set(hx+ox*d,hy+oy*d,hz+oz*d);cam.lookAt(hx,hy,hz);
+}
+/* ===== Rayo por vóxeles (DDA) y pincel ===== */
+function cast(o,d){
+ const ox=o.x/VS,oy=o.y/VS,oz=o.z/VS;let x=Math.floor(ox),y=Math.floor(oy),z=Math.floor(oz);
+ const sx=d.x>0?1:-1,sy=d.y>0?1:-1,sz=d.z>0?1:-1,tdx=Math.abs(1/d.x),tdy=Math.abs(1/d.y),tdz=Math.abs(1/d.z);
+ let tx=(d.x>0?x+1-ox:ox-x)*tdx,ty=(d.y>0?y+1-oy:oy-y)*tdy,tz=(d.z>0?z+1-oz:oz-z)*tdz,px=x,py=y,pz=z;
+ for(let n=0;n<2500;n++){if(den(x,y,z)>0)return{x,y,z,px,py,pz};px=x;py=y;pz=z;
+  if(tx<ty&&tx<tz){x+=sx;tx+=tdx}else if(ty<tz){y+=sy;ty+=tdy}else{z+=sz;tz+=tdz}}
+ return null;
+}
+function brush(cx,cy,cz,r,add,m){const Rr=Math.ceil(r)+1;
+ for(let z=cz-Rr;z<=cz+Rr;z++)for(let y=cy-Rr;y<=cy+Rr;y++)for(let x=cx-Rr;x<=cx+Rr;x++){
+  if(x<0||y<0||z<0||x>=NX||y>=NY||z>=NZ)continue;const i=x+z*NX+y*SY,sd=(Math.hypot(x-cx,y-cy,z-cz)-r)*DS;
+  if(add){const nv=cl(Math.round(Math.max(D[i],-sd)),-127,127);if(nv>0&&D[i]<=0)M[i]=m;D[i]=nv}
+  else D[i]=cl(Math.round(Math.min(D[i],sd)),-127,127)}
+ dirtyRange(cx-Rr-2,cy-Rr-2,cz-Rr-2,cx+Rr+2,cy+Rr+2,cz+Rr+2);
+}
+const fm=v=>v.toFixed(2).replace('.',',');
+function topOf(x,z){for(let y=NY-1;y>=0;y--)if(D[x+z*NX+y*SY]>0)return y;return -1}
+function profile(hit){
+ const x=hit.x,z=hit.z,top=topOf(x,z);if(top<0)return'';
+ const runs=[];let cur=-9,st=top;
+ for(let y=top;y>=0;y--){const i=x+z*NX+y*SY,m=D[i]>0?M[i]:0;if(m!==cur){if(cur!==-9)runs.push([cur,st,y+1]);cur=m;st=y}}
+ runs.push([cur,st,0]);
+ const hi=hit.x+hit.z*NX+hit.y*SY,hm=D[hi]>0?M[hi]:0;
+ let h=`<h3>Perfil del suelo</h3><div class="mut">Punto (${fm(x*VS)} m, ${fm(z*VS)} m) · superficie a ${fm((top+1)*VS)} m de altura · toca para cerrar</div>
+ <div style="margin:6px 0">Tocaste: <b>${MAT[hm].n}</b> a ${fm((top-hit.y)*VS+VS/2)} m de profundidad</div>`;
+ for(const[m,a,b]of runs)h+=`<div class="row"><div class="sw" style="background:#${MAT[m].c.toString(16).padStart(6,'0')}"></div><div>${MAT[m].n}<br><span class="mut">${fm((top-a)*VS)}–${fm((top-b+1)*VS)} m · grosor ${fm((a-b+1)*VS)} m${b===0?' (sigue hacia abajo)':''}</span></div></div>`;
+ return h;
+}
+/* ===== Entrada ===== */
+const $=id=>document.getElementById(id);
+const cv=R.domElement,camP=new Map();let tapD=null,tool='none';
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);
+ if(!joy&&e.pointerType!=='mouse'&&e.clientX<innerWidth*.45&&e.clientY>innerHeight*.4){joy={id:e.pointerId,ox:e.clientX,oy:e.clientY,x:0,y:0};const j=$('joy');j.style.left=e.clientX+'px';j.style.top=e.clientY+'px';j.style.display='block';$('hint').style.display='none';return}
+ camP.set(e.pointerId,{x:e.clientX,y:e.clientY});tapD=camP.size===1?{t:performance.now(),mv:0,btn:e.button}:null});
+cv.addEventListener('pointermove',e=>{
+ if(joy&&e.pointerId===joy.id){let dx=e.clientX-joy.ox,dy=e.clientY-joy.oy;const m=Math.hypot(dx,dy);if(m>45){dx*=45/m;dy*=45/m}joy.x=dx/45;joy.y=dy/45;$('knob').style.transform=`translate(${dx}px,${dy}px)`;return}
+ const p=camP.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;
+ if(camP.size===1){if(tapD)tapD.mv+=Math.abs(dx)+Math.abs(dy);yaw-=dx*.006;pitch=cl(pitch+dy*.005,fp?-1.3:-.45,fp?1.4:1.3)}
+ else if(camP.size===2){const o=[...camP.values()].find(q=>q!==p),d0=Math.hypot(p.x-o.x,p.y-o.y),d1=Math.hypot(e.clientX-o.x,e.clientY-o.y);if(d1>0)cdist=cl(cdist*d0/d1,1.5,14)}
+ p.x=e.clientX;p.y=e.clientY});
+function pUp(e,cancel){
+ if(joy&&e.pointerId===joy.id){joy=null;$('joy').style.display='none';$('knob').style.transform='';return}
+ if(!cancel&&tapD&&camP.size===1&&tapD.mv<10&&performance.now()-tapD.t<500&&tapD.btn===0)act(e.clientX,e.clientY);
+ camP.delete(e.pointerId);tapD=null}
+cv.addEventListener('pointerup',e=>pUp(e,false));cv.addEventListener('pointercancel',e=>pUp(e,true));
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',e=>{e.preventDefault();cdist=cl(cdist*Math.exp(e.deltaY*.001),1.5,14)},{passive:false});
+addEventListener('keydown',e=>{K[e.code]=1;if(e.code==='Space'){jumpReq=true;e.preventDefault()}});
+addEventListener('keyup',e=>{delete K[e.code]});
+$('jumpB').addEventListener('pointerdown',e=>{e.preventDefault();jumpReq=true});
+$('runB').addEventListener('pointerdown',e=>{e.preventDefault();runOn=!runOn;$('runB').classList.toggle('on',runOn)});
+const rc=new THREE.Raycaster(),nd=new THREE.Vector2();
+function act(cx,cy){
+ if(tool==='none')return;
+ nd.set(cx/innerWidth*2-1,-cy/innerHeight*2+1);rc.setFromCamera(nd,cam);const h=cast(rc.ray.origin,rc.ray.direction);if(!h)return;
+ const r=+$('rad').value;marker.position.set((h.x+.5)*VS,(h.y+.5)*VS,(h.z+.5)*VS);marker.scale.setScalar(tool==='ins'?VS:r*VS);marker.visible=true;
+ if(tool==='dig')brush(h.x,h.y,h.z,r,false,0);
+ else if(tool==='add')brush(h.px,h.py,h.pz,r,true,M[h.x+h.z*NX+h.y*SY]);
+ const inf=$('info');inf.innerHTML=profile(h);inf.style.display='block';
+}
+/* ===== Interfaz ===== */
+document.querySelectorAll('#tools .b').forEach(b=>b.onclick=()=>{tool=b.dataset.t;document.querySelectorAll('#tools .b').forEach(o=>o.classList.toggle('on',o===b));if(tool==='none')marker.visible=false});
+document.querySelectorAll('#sty .b').forEach(b=>b.onclick=()=>{smooth=b.dataset.s==='1';document.querySelectorAll('#sty .b').forEach(o=>o.classList.toggle('on',o===b));allDirty();showLoad()});
+$('camB').onclick=()=>{fp=!fp;$('camB').textContent=fp?'1ª persona':'3ª persona';pitch=fp?0:.35};
+let menu=false;$('menuB').onclick=()=>{menu=!menu;$('more').style.display=menu?'flex':'none';$('menuB').classList.toggle('on',menu)};
+$('cutB').onclick=()=>{cutOn=!cutOn;$('cutB').textContent='Corte: '+(cutOn?'sí':'no');$('cutB').classList.toggle('on',cutOn);$('cutL').style.display=cutOn?'flex':'none';dirtyRange(Math.min(cutX,NX)-2,0,0,NX,NY,NZ);placeWater()};
+$('cut').onchange=e=>{const n=+e.target.value;dirtyRange(Math.min(n,cutX)-2,0,0,Math.max(n,cutX)+1,NY,NZ);cutX=n;placeWater()};
+const rv=()=>$('radV').textContent=fm(+$('rad').value*VS)+' m';$('rad').oninput=rv;rv();
+$('seedB').onclick=()=>{SEED++;gen();allDirty();$('info').style.display='none';marker.visible=false;spawn();showLoad()};
+$('spawnB').onclick=spawn;$('bf').oninput=e=>$('bfV').textContent=e.target.value+' %';$('bf').onchange=e=>{showLoad();setTimeout(()=>setFat(+e.target.value),30)};$('anatB').onclick=()=>setAnat((am+1)%AMODES.length);
+$('info').onclick=()=>$('info').style.display='none';
+let legOn=false;$('legB').onclick=()=>{legOn=!legOn;$('leg').style.display=legOn?'block':'none';$('legB').classList.toggle('on',legOn)};
+const showLoad=()=>{$('load').style.display='flex'};
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)});
+function fillLeg(){$('leg').innerHTML='<h3>Atlas anatómico</h3><p class="mut">'+(ANAT.done?'Huesos: <b>'+ANAT.bones.size+' / 206</b> · dientes: 32 / 32 · cartílagos: '+ANAT.names.cart.size+' tipos · músculos: <b>'+ANAT.musP.size+' piezas con nombre</b> ('+ANAT.names.mus.size+' tipos) · órganos: <b>'+ANAT.orgP.size+' piezas con nombre</b> ('+ANAT.names.org.size+' tipos).'+[['vaso','Vasos sanguíneos'],['linf','Linfático'],['nerv','Nervios'],['lig','Ligamentos, tendones y bolsas']].map(([k,t])=>ANAT.P[k].size?' · '+t.toLowerCase()+': <b>'+ANAT.P[k].size+' piezas</b> ('+ANAT.names[k].size+' tipos)':'').join('')+'<br><b>Órganos:</b> '+[...ANAT.names.org].sort().join(', ')+'.'+[['vaso','Vasos sanguíneos'],['linf','Linfático'],['nerv','Nervios'],['lig','Ligamentos, tendones y bolsas']].map(([k,t])=>ANAT.P[k].size?'<br><b>'+t+':</b> '+[...ANAT.names[k]].sort().join(', ')+'.':'').join('')+'<br><b>Huesos:</b> '+[...new Set([...ANAT.bones].map(n=>n.replace(/ (izquierd|derech)[oa]$/,'')))].join(', ')+'.<br><b>Músculos:</b> '+[...ANAT.names.mus].sort().join(', ')+'.<br><b>Cartílagos:</b> '+[...ANAT.names.cart].join(', ')+'.':'Abre Menú → Anatomía: cada sistema se construye la primera vez que lo eliges (unos segundos).')+'</p><h3>Novedades v0.12</h3><p class="mut">• Sin costuras en rodillas y codos: la pierna y el antebrazo incluyen la parte final del muslo y del brazo, unidas de forma suave; ya no se ve el anillo en la articulación.<br>• Anatomía bajo demanda por sistema: al elegir un modo solo se construye lo que ese modo muestra (por ejemplo, el esqueleto completo en unos segundos), en vez de todo el cuerpo de una vez.</p><h3>Novedades v0.11</h3><p class="mut">• Sistema articular: ~340 piezas con nombre (134 tipos).<br>– Columna: longitudinales anterior y posterior, supraespinoso, nucal, interespinosos y amarillos de cada segmento.<br>– Pelvis: sacroilíacos, sacrotuberosos, sacroespinosos, inguinales, iliolumbares.<br>– Tórax y hombro: esternoclaviculares, costoclaviculares, esternocostales radiados, acromioclaviculares, conoide, trapezoide, coracoacromial, coracohumeral, glenohumerales, cápsula del hombro y bolsa subacromial.<br>– Codo, muñeca y mano: colaterales cubital y radial, anular del radio, radiocarpianos, colaterales del carpo, retináculos flexor y extensor, aponeurosis palmar, tendones flexores y extensores de cada dedo y colaterales de cada articulación de los dedos.<br>– Cadera y rodilla: iliofemoral, pubofemoral, isquiofemoral, redondo, cápsulas, tracto iliotibial, cruzados, colaterales, rotuliano, poplíteo oblicuo, tendón del cuádriceps y bolsas (trocantérea, iliopsoas, suprarrotuliana, prerrotuliana, infrarrotuliana, anserina).<br>– Tobillo y pie: deltoideo, talofibulares, calcaneofibular, tibiofibulares, resorte, plantar largo, retináculos, aponeurosis plantar, tendones de Aquiles, tibiales, peroneos y de cada dedo, bolsa retrocalcánea.<br>– Cabeza: gálea, ligamentos y discos temporomandibulares. Fascia toracolumbar.</p><h3>Novedades v0.10</h3><p class="mut">• Sistema nervioso periférico: ~390 piezas con nombre (111 tipos).<br>– Los 12 pares craneales con sus ramas: olfatorio, óptico, oculomotor, troclear, trigémino (ganglio de Gasser y sus 3 divisiones, lingual), abducens, facial (5 ramas), vestibulococlear, glosofaríngeo, vago (con los laríngeos recurrentes), accesorio e hipogloso.<br>– Los 31 pares de nervios espinales (C1–C8, T1–T12, L1–L5, S1–S5, Co1), cada uno con su ganglio de la raíz dorsal.<br>– Plexo cervical (frénico, auricular mayor, occipitales, transverso del cuello, supraclaviculares); plexo braquial con raíces, troncos y cordones, supraescapular, torácico largo, toracodorsal, pectorales, subescapular, musculocutáneo, axilar, radial, mediano, cubital y sus ramas en antebrazo y mano hasta cada dedo; 11 intercostales y subcostal; plexo lumbar (iliohipogástrico, ilioinguinal, genitofemoral, cutáneo femoral lateral, femoral, obturador, safeno); plexo sacro (ciático, glúteos, pudendo, cutáneo femoral posterior, tibial, plantares, peroneos común, superficial y profundo, sural, digitales del pie).<br>– Sistema autónomo: troncos simpáticos con ganglios cervicales, estrellado, torácicos, lumbares y sacros, ganglio impar, esplácnicos, ganglios celíacos y mesentéricos.</p><h3>Novedades v0.9</h3><p class="mut">• Sistema circulatorio: ~260 vasos con nombre (113 tipos). Arterias: aorta en 4 tramos, coronarias, tronco pulmonar y arterias pulmonares, carótidas común, interna y externa con sus ramas (facial, lingual, maxilar, temporal superficial, occipital, tiroidea superior), vertebrales, basilar, círculo de Willis completo, oftálmicas, torácicas internas, 11 intercostales por lado, tronco celíaco y sus 3 ramas, mesentéricas, renales, suprarrenales, testiculares, lumbares, ilíacas, glúteas, pudendas; en los miembros axilar, braquial, radial, cubital, arcos palmares, digitales, femoral, profunda, circunflejas, poplítea, tibiales, peronea, dorsal del pie, plantares y arco plantar. Venas: cavas, braquiocefálicas, yugulares, facial, retromandibular, senos durales, ácigos y hemiácigos, porta, esplénica, mesentéricas, hepáticas, renales, pulmonares, intercostales, cefálica, basílica, mediana del codo, safenas mayor y menor, femoral, poplítea, tibiales y arcos venosos.<br>• Sistema linfático: conducto torácico, cisterna del quilo, conducto linfático derecho, vasos linfáticos de los miembros y ~120 ganglios por región (cervicales, submandibulares, occipitales, auriculares, supraclaviculares, axilares, mediastínicos, hiliares, paraaórticos, celíacos, mesentéricos, ilíacos, inguinales, epitrocleares y poplíteos).<br>• Los vasos son tubos reales que siguen a cada segmento del cuerpo al moverse.</p><h3>Novedades v0.8</h3><p class="mut">• Órganos completos por aparato (~190 piezas con nombre, 135 tipos):<br>– Nervioso central: 4 lóbulos por hemisferio, ínsula, tálamos, hipotálamo, núcleos caudado y putamen, hipocampos, amígdalas cerebrales, cuerpo calloso, 4 ventrículos, mesencéfalo, puente, bulbo, cerebelo (hemisferios y vermis), hipófisis, pineal, bulbos olfatorios, quiasma óptico, duramadre (con ventana abierta), médula espinal, cono medular, cola de caballo y filum terminal.<br>– Ojo: córnea, iris, cristalino, cuerpo vítreo, retina, esclerótica, nervio óptico y glándula lagrimal. Oído: conducto auditivo, tímpano, cóclea, vestíbulo, 3 conductos semicirculares y trompa de Eustaquio.<br>– Nariz y boca: cavidad nasal, 4 senos paranasales, parótidas, submandibulares, sublinguales, amígdalas (palatinas, faríngea, lingual), encías, lengua, faringe en 3 partes, cuerdas vocales.<br>– Cuello: tiroides (lóbulos e istmo) y 4 paratiroides. Tórax: timo, tráquea, carina, bronquios principales y lobares, pulmón derecho en 3 lóbulos e izquierdo en 2, pleuras, corazón con 4 cámaras y 4 válvulas, pericardio.<br>– Abdomen: esófago, estómago en 4 partes, duodeno, yeyuno, íleon, ciego, apéndice, colon en 4 partes, recto, canal anal, hígado en 4 lóbulos, vesícula, conductos biliares, páncreas en 3 partes con su conducto, bazo, epiplón y mesenterio.<br>– Urinario: riñones, pelvis renales, uréteres, vejiga, uretra. Suprarrenales.<br>– Reproductor masculino (oculto bajo el bóxer): testículos, epidídimos, conductos deferentes, vesículas seminales, próstata, glándulas bulbouretrales, cuerpos cavernosos y esponjoso, glande, escroto.<br>• Resolución por órgano: oído interno 0,45 mm, ojo 0,6 mm.</p><h3>Novedades v0.7</h3><p class="mut">• Sistema muscular completo por regiones (~690 piezas con nombre y lado, 240 tipos), cada músculo de su origen a su inserción:<br>– Cabeza y cuello: 6 extraoculares y elevador del párpado por ojo, 4 extrínsecos y 4 intrínsecos de la lengua, paladar blando, 3 constrictores de la faringe, laringe (cricotiroideo, cricoaritenoideos, tiroaritenoideo, vocal, aritenoideos), oído medio (tensor del tímpano, estapedio), suboccipitales, prevertebrales, 3 escalenos, esplenios, semiespinosos, elevador de la escápula, infra y suprahioideos.<br>– Tronco: romboides, serratos posteriores, erectores de la columna en 9 partes, multífidos, rotadores y elevadores de las costillas uno por segmento, interespinosos e intertransversos, 33 intercostales por lado (externos, internos e íntimos), diafragma, pared abdominal completa, psoas e ilíaco, suelo pélvico y periné, rotadores profundos de la cadera.<br>– Miembro superior: manguito rotador, 3 porciones del deltoides, cabezas del bíceps y tríceps, los 19 del antebrazo, tenar, hipotenar, 4 lumbricales y 7 interóseos por mano.<br>– Miembro inferior: glúteos, cuádriceps, aductores, isquiotibiales, los 13 de la pierna y las 4 capas de la planta del pie.<br>• Construcción más rápida: rejilla de aceleración y mallas por región.</p><h3>Novedades v0.6</h3><p class="mut">• Esqueleto completo: los 206 huesos del adulto, cada uno con nombre y lado: 22 del cráneo (8 craneales y 14 faciales), 6 huesecillos del oído (martillo, yunque, estribo), hioides, 26 de la columna (24 vértebras, sacro, cóccix), esternón y 24 costillas, y en cada mano 8 del carpo, 5 metacarpianos y 14 falanges que siguen la curva de los dedos; en cada pie 7 del tarso, 5 metatarsianos y 14 falanges.<br>• 32 dientes (incisivos, caninos, premolares, molares y muelas del juicio).<br>• Capa nueva de cartílagos: 23 discos intervertebrales, cartílagos costales, nariz (septal, laterales, alares), orejas, laringe (tiroides, cricoides, aritenoides, epiglotis), meniscos y sínfisis del pubis.<br>• Cabeza por capas: cráneo + 26 tipos de músculos de la cara y el cuello (expresión, masticación, oreja, suprahioideos e infrahioideos) + bolsas de grasa (Bichat, malar, nasolabial, temporal, orbitaria, submentoniana) + cartílagos + piel. Cada capa se ajusta sola para quedar debajo de la piel.<br>• Las capas internas se construyen solo cuando abres el modo Anatomía, así el juego arranca igual de rápido.</p><h3>Novedades v0.5</h3><p class="mut">• La piel ya no es una forma esculpida: se construye por capas como en el cuerpo real. Hueso → músculos con forma de huso (vientre grueso, tendones delgados) → grasa subcutánea con grosor por región → dermis de 2 mm.<br>• Grosores de grasa a 15 %: abdomen ~1,2 cm, flancos ~1 cm, glúteos ~1,4 cm, muslo lateral ~1 cm, parte posterior del brazo ~9 mm, antebrazo 2,5 mm, espinilla y rótula ~1–2 mm (ahí el hueso queda casi bajo la piel), tórax ~6 mm.<br>• Relieves óseos bajo la piel: clavículas, acromion, esternón, escápulas, crestas ilíacas, trocánter, rótula, tibia, maléolos, olécranon, cúbito y muñeca. Ombligo y surco de la columna se ajustan solos a la grasa.<br>• Capa nueva «Grasa subcutánea» (Menú → Anatomía): amarillo más intenso = más grueso.<br>• Control «Grasa corporal» (6–35 %) en el Menú: el cuerpo se reconstruye con más o menos grasa.<br>• La cabeza sigue esculpida (con su grasa facial incluida); se pasará a capas después.</p><h3>Novedades v0.4</h3><p class="mut">• Piel rediseñada con anatomía de superficie: cara con arco de las cejas, párpados, pómulos, nariz con fosas, labios, mentón, mandíbula, orejas con concha y nuez; cuello con esternocleidomastoideos; trapecios, clavículas, pectorales, ombligo, escápulas y surco de la columna; codos, muñecas, manos con nudillos y dedos de 3 falanges algo curvados y uñas; rodillas con rótula y tendón, gemelos, tobillos con maléolos, tendón de Aquiles, arco del pie y 5 dedos con uñas.<br>• Resolución: cabeza 5 mm, manos 4,2 mm, pies 6 mm, cuerpo 1 cm.<br>• Color de piel con poros, rubor (mejillas, nariz, orejas, nudillos, rodillas), palmas y plantas más claras, barba incipiente, pelo con mechones, iris con fibras.<br>• Luz de piel: la luz se dispersa en la piel (aspecto menos de plástico) con un brillo suave.</p><h3>Novedades v0.3</h3><p class="mut">• Personaje nuevo: cuerpo humano delgado, solo en bóxer, piel de vóxeles suavizados (1,2 cm en el cuerpo, 6 mm en las manos con 5 dedos), cara con nariz, orejas, labios, cejas, pelo y ojos con iris y pupila.<br>• Anatomía completa por dentro, oculta: '+ANAT.n.hueso+' huesos/piezas óseas, '+ANAT.n.mus+' músculos y '+ANAT.n.org+' piezas de órganos, cada una con su nombre.<br>• Articulaciones reales: hombro, codo, cadera y rodilla; la cadera baja al dar el paso para que el pie no flote.<br>• Prueba en Menú → «Anatomía» (solo para revisar; en el juego normal solo se ve la piel).</p><p class="mut"><b>Órganos:</b> '+[...ANAT.names.org].join(', ')+'.<br><b>Huesos:</b> '+[...ANAT.names.hueso].join(', ')+'.<br><b>Músculos:</b> '+[...ANAT.names.mus].join(', ')+'.<br>Triángulos: piel '+Math.round(ANAT.tris.piel+ANAT.tris.ojos)+' · músculos '+Math.round(ANAT.tris.mus||0)+' · huesos '+Math.round(ANAT.tris.hueso||0)+' · órganos '+Math.round(ANAT.tris.org||0)+'.</p><h3>Novedades v0.2</h3><p class="mut">• Caminar en 3ª y 1ª persona. Física sobre la densidad del suelo (pendientes, paredes, agua).<br>• Herramienta «Mirar» por defecto.</p><p class="mut">Controles: celular → arrastra en la esquina inferior izquierda para caminar, arrastra en el resto para girar la cámara, pellizca para alejar o acercar. PC → WASD, Shift corre, Espacio salta, arrastra con el ratón para girar, rueda para el zoom.</p><h3>Capas del suelo (de arriba a abajo)</h3>'+MAT.slice(1).map(m=>`<div class="row"><div class="sw" style="background:#${m.c.toString(16).padStart(6,'0')}"></div><div><b>${m.n}</b><br><span class="mut">${m.d}</span></div></div>`).join('')+
+ '<p class="mut">Catena: en zonas planas y bajas el suelo es más profundo; en pendientes fuertes es delgado y la roca madre aflora. En la orilla del río el suelo es aluvial (arena y grava). Escala: 1 vóxel = 25 cm. Mundo: 48 × 48 × 20 m.</p>'}
+/* ===== Bucle ===== */
+let fc=0,ft=performance.now(),last=performance.now();
+function loop(){requestAnimationFrame(loop);const t0=performance.now(),dt=Math.min(.05,(t0-last)/1000);last=t0;let pend=false;
+ for(const ch of CH)if(ch.dirty){if(performance.now()-t0>12){pend=true;break}build(ch)}
+ if(!pend&&$('load').style.display!=='none')$('load').style.display='none';
+ physics(dt);updCam();R.render(S,cam);fc++;const t=performance.now();if(t-ft>1000){$('fps').textContent=Math.round(fc*1000/(t-ft));fc=0;ft=t}}
+setTimeout(()=>{gen();placeWater();makeHero();fillLeg();spawn();loop()},30);
+</script></body></html>
